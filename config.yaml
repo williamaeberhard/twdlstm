@@ -1,0 +1,33 @@
+# Configuration for twdlstm v0.1
+
+path_data: '/mydata/forestcast/william/WP3/DataProcessed'
+path_outputdir: '/mydata/forestcast/william/WP3/LSTM_runs/outputs'
+
+prefixoutput: '00' #
+
+tstoy: '04' # '04' for tstoy04
+
+series: ['01','02','03'] # 01-42 in tstoy04
+
+date_t0: '2021-01-01' # assuming time points are daily
+# ind_t0: 366 # 2021-01-01
+nT_tr: 100 # size of tr set (time points), starts from date_t0
+nT_va: 10 # size of va set, starts right after the nT_tr time points
+
+covvec: ['pr', 'at']
+# covvec: ['pr', 'at', 'ws', 'dp', 'sr', 'lr'] # all in tstoy04
+
+h_size: 8 # 8,16,32,64 <= 32 generally good
+o_size: 1 # 1
+nb_layers: 1 # 1
+
+seed: 1234
+
+maxepoch: 10
+learning_rate: 1e-2 # 1e-2 is good, 1e-1 better if scheduling
+alphal2: 0.0 # L2 pen (weight decay) in RMSprop # 0.0, 0.5, 0.8
+momentum: 0.0 # momentum in RMSprop # 0.0, 0.5
+
+# run from /mydata/forestcast/william/WP3:
+# nohup python src/twdlstm/train.py LSTM_runs/configs/config_00.yaml > LSTM_runs/logs/log_00.txt &
+
