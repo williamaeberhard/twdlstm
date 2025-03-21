@@ -1,4 +1,4 @@
-# Configuration for twdlstm v0.2
+# Configuration for twdlstm v0.2.1
 
 path_data: '/mydata/forestcast/william/WP3/DataProcessed'
 path_outputdir: '/mydata/forestcast/william/WP3/LSTM_runs/outputs'
@@ -7,8 +7,7 @@ prefixoutput: '00' #
 
 tstoy: '04' # '04' for tstoy04
 
-# series: ['01','02','03'] # 01-42 in tstoy04
-series: ['01','02','03','04'] # 01-42 in tstoy04
+series: ['01','02'] # 01-42 in tstoy04, at least two
 
 date_t0: '2021-01-01' # assuming time points are daily
 # ind_t0: 366 # 2021-01-01
@@ -25,6 +24,7 @@ nb_layers: 1 # 1
 seed: 1234
 
 maxepoch: 10
+loss: 'MSE' # 'MSE', 'MAE'
 learning_rate: 1e-2 # 1e-2 is good, 1e-1 better if scheduling
 alphal2: 0.0 # L2 pen (weight decay) in RMSprop # 0.0, 0.5, 0.8
 momentum: 0.0 # momentum in RMSprop # 0.0, 0.5

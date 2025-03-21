@@ -1,4 +1,4 @@
-# twdlstm train v0.2
+# twdlstm train v0.2.1
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -44,7 +44,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm train v0.2\n')
+print(now_str + ' running twdlstm train v0.2.1\n')
 # print('\n')
 
 print('Supplied config:')
@@ -244,17 +244,21 @@ h0 = torch.zeros(nb_layers, h_size) # num_layers, hidden_size
 c0 = torch.zeros(nb_layers, h_size) # num_layers, hidden_size
 
 nb_param = 4*h_size*i_size + 4*h_size*h_size + 4*h_size*2 + o_size*(h_size+1)
-nb_obs = 3*nT_tr # 3 because 3 series on config yaml
+nb_obs = len(seriesvec)*nT_tr # 
 print('Total number of parameters =',nb_param)
 print('Total number of training observations =',nb_obs,'\n')
 # print('\n')
 
 
 #%% setup loss and optim
-loss_fn = torch.nn.MSELoss(reduction='sum') # TODO: add loss in config
-# loss_fn = torch.nn.MSELoss(reduction='mean')
+if config['loss']=='MSE':
+    loss_fn = torch.nn.MSELoss(reduction='sum') # sum of squared errors
+elif config['loss']=='MAE':
+    loss_fn = torch.nn.L1Loss(reduction='sum') # sum of abs error
+
+# loss_fn = torch.nn.MSELoss(reduction='mean') # mean squared error
 # loss_fn = torch.nn.L1Loss(reduction='mean') # mean asbolute error
-# loss_fn = torch.nn.L1Loss(reduction='sum') # sum of abs error
+
 
 learning_rate = float(config['learning_rate'])
 alphal2 = config['alphal2']
@@ -283,23 +287,6 @@ maxepoch = int(config['maxepoch'])
 #     # gamma=0.1 # multiplicative factor reducing lr
 # )
 # TODO: add scheduler
-
-
-# a = torch.tensor(([1,2,3],[4,5,6]))
-# a.shape
-# b = torch.tensor(([7,8,9],[10,11,12]))
-# b.shape
-
-# c = torch.stack((a, b), dim=a.dim())
-# c.shape
-# c[:,:,1]
-# b
-
-# d = torch.tensor(([13,14,15],[16,17,18]))
-# d.shape
-
-# e = torch.cat((c,d),dim=d.dim())
-
 
 #%% optim
 epoch = 0
@@ -331,11 +318,11 @@ while (epoch < maxepoch) :
     # scheduler.step() # update lr throughout epochs
     
     # if epoch%(maxepoch/10)==(maxepoch/10-1):
-    print('epoch='+str(epoch)+': tr loss = {:.4f}'.format(loss_tr))
+    loss_tr = loss_tr/nb_obs # sum squared/absolute errors -> MSE/MAE
+    print('epoch='+str(epoch)+': tr',config['loss'],'loss = {:.4f}'.format(loss_tr))
     lossvec_tr.append(loss_tr)
     lossvec_va.append(loss_va)
-    # if epoch==46: # smallest va loss with h_size=32
-    #     break
+    
     epoch += 1
     # end while
 
@@ -360,7 +347,7 @@ plt.plot(range(maxepoch), np.array(lossvec_tr)/nT_tr, c=colvec[0], label='tr los
 plt.plot(range(maxepoch), np.array(lossvec_va)/nT_va, c=colvec[1], label='va loss')
 # plt.scatter(range(maxepoch), np.array(lossvec_va)/nT_va, s=16, c=colvec[1])
 plt.legend(loc='upper right')
-plt.title('training and validation loss over all series')
+plt.title('training and validation '+config['loss']+' loss over all series')
 plt.savefig(path_out + '_loss.pdf')
 plt.close()
 

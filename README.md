@@ -1,5 +1,5 @@
 twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
----------------------------------------------------------------
+----------------------------------------------------------------
 
 ### TODO
 
@@ -9,7 +9,10 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 
 ### Version history
 
-This is twdlstm version 0.2. Change log:
+This is twdlstm version 0.2.1. Change log:
+* v0.2.1:
+  - fixed total number of parameters printed in log
+  - added loss to config, choice betwen 'MSE' and 'MAE'.
 * v0.2: arbitrary number of series can be supplied (>=2), loop over seriesvec
 * v0.1.1: fixed datetime stamp for Europe/Zurich tz
 * v0.1: initial release
