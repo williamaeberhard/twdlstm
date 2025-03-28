@@ -1,4 +1,4 @@
-# twdlstm train v0.2.1
+# twdlstm train v0.3
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -44,7 +44,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm train v0.2.1\n')
+print(now_str + ' running twdlstm train v0.3\n')
 # print('\n')
 
 print('Supplied config:')
@@ -53,12 +53,17 @@ print(path_config+'\n')
 
 seriesvec = config['series']
 covvec = config['covvec']
-nT_tr = config['nT_tr'] # size of tr set
-nT_va = config['nT_va'] # size of va set
+# nT_tr = config['nT_tr'] # size of tr set
+# nT_va = config['nT_va'] # size of va set
+nT = config['nT'] # time window length, to be split in batches for tr/va
+
+nb_series = len(seriesvec)
+nb_cov = len(covvec)
+
+
 
 # ini: s=0
 s = 0
-
 series_s = seriesvec[s] # '01' # 01-42
 path_csv_series_s = (path_tstoy + 'SeparateSeries/tstoy' + config['tstoy'] +
     '_series_' + series_s + '.csv'
@@ -82,29 +87,41 @@ dat_s = pd.read_csv(
 ind_t0 = int(np.where(dat_s['ts']==config['date_t0'])[0].item())
 # ^ dat row index corresponding to date_t0 in config
 
-ind_tr = range(ind_t0, nT_tr+ind_t0, 1) # for i in ind_tr: print(i)
-ind_va = range(nT_tr+ind_t0, nT_tr+ind_t0+nT_va, 1) # for i in ind_va: print(i)
+# ind_tr = range(ind_t0, nT_tr+ind_t0, 1) # for i in ind_tr: print(i)
+# ind_va = range(nT_tr+ind_t0, nT_tr+ind_t0+nT_va, 1) # for i in ind_va: print(i)
+ind_t = range(ind_t0, nT+ind_t0, 1) # for i in ind_t: print(i)
 
-y_full = dat_s['twd']
-y_tr = y_full[ind_tr]
-y_va = y_full[ind_va]
+# y_full = dat_s['twd']
+# y_tr = y_full[ind_tr]
+# y_va = y_full[ind_va]
+# x_full = dat_s[covvec]
+# x_tr = x_full.iloc[ind_tr,:] # ini, time subset, all cols
+# x_va = x_full.iloc[ind_va,:] # ini, time subset, all cols
 
-x_full = dat_s[covvec]
-x_tr = x_full.iloc[ind_tr,:] # ini, time subset, all cols
-x_va = x_full.iloc[ind_va,:] # ini, time subset, all cols
+y_full = dat_s['twd'][ind_t]
+x_full = dat_s[covvec].iloc[ind_t,:] # ini, time subset, all cols
 
-mean_s = np.apply_along_axis(np.mean, 0, x_tr)
-sd_s = np.apply_along_axis(np.std, 0, x_tr)
-for j in range(x_tr.shape[1]): # loop over columns, overwrite each cov
-    x_tr.iloc[:,j] = (x_tr.iloc[:,j]-mean_s[j])/sd_s[j]
-    x_va.iloc[:,j] = (x_va.iloc[:,j]-mean_s[j])/sd_s[j]
+# mean_s = np.apply_along_axis(np.mean, 0, x_tr) # tr cov mean
+# sd_s = np.apply_along_axis(np.std, 0, x_tr) # tr cov sd
+# for j in range(x_tr.shape[1]): # loop over columns, overwrite each cov
+#     x_tr.iloc[:,j] = (x_tr.iloc[:,j]-mean_s[j])/sd_s[j]
+#     x_va.iloc[:,j] = (x_va.iloc[:,j]-mean_s[j])/sd_s[j]
 
-x_tr = np.expand_dims(x_tr, axis=0) # add a dim for stacking series
-x_va = np.expand_dims(x_va, axis=0) # add a dim for stacking series
-y_tr = np.expand_dims(y_tr, axis=0) # add a dim for stacking series
-y_va = np.expand_dims(y_va, axis=0) # add a dim for stacking series
+# v0.3: use entire time window (tr and va batches) for cov norm
+mean_s = np.apply_along_axis(np.mean, 0, x_full) # tr cov mean
+sd_s = np.apply_along_axis(np.std, 0, x_full) # tr cov sd
+for j in range(nb_cov): # loop over columns, overwrite each cov
+    x_full.iloc[:,j] = (x_full.iloc[:,j]-mean_s[j])/sd_s[j]
 
-for s in range(1,len(seriesvec)): # loop over series after 1st 
+
+# x_tr = np.expand_dims(x_tr, axis=0) # add a dim for stacking series
+# x_va = np.expand_dims(x_va, axis=0) # add a dim for stacking series
+# y_tr = np.expand_dims(y_tr, axis=0) # add a dim for stacking series
+# y_va = np.expand_dims(y_va, axis=0) # add a dim for stacking series
+x_full = np.expand_dims(x_full, axis=0) # add a dim for stacking series
+y_full = np.expand_dims(y_full, axis=0) # add a dim for stacking series
+
+for s in range(1,nb_series): # loop over series after 1st 
     series_s = seriesvec[s] # '01' # 01-42
     path_csv_series_s = (path_tstoy + 'SeparateSeries/tstoy' + config['tstoy'] +
         '_series_' + series_s + '.csv'
@@ -123,53 +140,91 @@ for s in range(1,len(seriesvec)): # loop over series after 1st
             'lr':float
         }
     )
+    y_s_full = dat_s['twd'][ind_t]
+    x_s_full = dat_s[covvec].iloc[ind_t,:]
+    mean_s = np.apply_along_axis(np.mean, 0, x_s_full)
+    sd_s = np.apply_along_axis(np.std, 0, x_s_full)
+    for j in range(nb_cov): # loop over columns, overwrite each cov
+        x_s_full.iloc[:,j] = (x_s_full.iloc[:,j]-mean_s[j])/sd_s[j]
     
-    y_s_full = dat_s['twd']
-    y_s_tr = y_s_full[ind_tr]
-    y_s_va = y_s_full[ind_va]
-    
-    x_s_full = dat_s[covvec]
-    x_s_tr = x_s_full.iloc[ind_tr,:] # ini, time subset, all cols
-    x_s_va = x_s_full.iloc[ind_va,:] # ini, time subset, all cols
-    
-    mean_s = np.apply_along_axis(np.mean, 0, x_s_tr)
-    sd_s = np.apply_along_axis(np.std, 0, x_s_tr)
-    for j in range(x_s_tr.shape[1]): # loop over columns, overwrite each cov
-        x_s_tr.iloc[:,j] = (x_s_tr.iloc[:,j]-mean_s[j])/sd_s[j]
-        x_s_va.iloc[:,j] = (x_s_va.iloc[:,j]-mean_s[j])/sd_s[j]
-    
-    x_s_tr = np.expand_dims(x_s_tr, axis=0) # add a dim for stacking series
-    x_s_va = np.expand_dims(x_s_va, axis=0) # add a dim for stacking series
-    y_s_tr = np.expand_dims(y_s_tr, axis=0) # add a dim for stacking series
-    y_s_va = np.expand_dims(y_s_va, axis=0) # add a dim for stacking series
-       
-    x_tr = np.concatenate((x_tr, x_s_tr), axis=0)
-    x_va = np.concatenate((x_va, x_s_va), axis=0)
-    y_tr = np.concatenate((y_tr, y_s_tr), axis=0)
-    y_va = np.concatenate((y_va, y_s_va), axis=0)
+    x_s_full = np.expand_dims(x_s_full, axis=0) # add a dim for stacking series
+    y_s_full = np.expand_dims(y_s_full, axis=0) # add a dim for stacking series
+    x_full = np.concatenate((x_full, x_s_full), axis=0)
+    y_full = np.concatenate((y_full, y_s_full), axis=0)
 
 # end loop over s in seriesvec
 
-# x_tr.shape
-# x_va.shape
-# y_tr.shape
-# y_va.shape
+# x_full.shape
+# y_full.shape
 
 # x_normalized = True
 
-xtr = torch.tensor(x_tr, dtype=torch.float32)
-xva = torch.tensor(x_va, dtype=torch.float32)
-ytr = torch.tensor(y_tr, dtype=torch.float32) # .reshape(-1,1)
-yva = torch.tensor(y_va, dtype=torch.float32)
-
+# xtr = torch.tensor(x_tr, dtype=torch.float32)
+# xva = torch.tensor(x_va, dtype=torch.float32)
+# ytr = torch.tensor(y_tr, dtype=torch.float32) # .reshape(-1,1)
+# yva = torch.tensor(y_va, dtype=torch.float32)
 # xtr.shape
 # xva.shape
 # ytr.shape
 # yva.shape
 
+xfull = torch.tensor(x_full, dtype=torch.float32)
+yfull = torch.tensor(y_full, dtype=torch.float32)
+# xfull.shape
+# yfull.shape
+
+
+
+#%% batches: overlaping temporal subsets over series
+b_len = int(config['batch_len'])
+b_nb = int(nT - b_len + 1) # int(nT_tr - b_len + 1)
+# ^ b_nb = number of temporal batches per series, each of length b_len
+
+nb_batches = int(nb_series*b_nb)
+
+xb = torch.empty(size=(nb_batches, b_len, nb_cov))
+yb = torch.empty(size=(nb_batches, b_len))
+for s in range(nb_series): # loop over series (dim 0)
+    x_s = torch.select(xfull, dim=0, index=s)
+    y_s = torch.select(yfull, dim=0, index=s) # .reshape(-1,1)
+    for t in range(b_nb):
+        ind_t = range(t, int(b_len+t)) # overlapping temporal subsets
+        xb[t+s*b_nb,:,:] = x_s[ind_t,:]
+        yb[t+s*b_nb,:] = y_s[ind_t]
+
+# xb.shape # batches = dim 0
+# yb.shape # batches = dim 0
+
+hor = config['loss_hor']
+ind_hor = range(int(b_len-hor),b_len)
+# ^ indices of obs contributing to loss eval within each batch
+
+
+#%% create tr and va subsets of batches
+nb_va = int(np.floor(nb_batches*config['prop_va']))
+# ^ number of batches for va, out of nb_batches
+nb_tr = nb_batches - nb_va
+# ^ number of batches for tr
+# nb_va/nb_batches # should be close to config['prop_va']
+
+# np.random.seed(seed=int(config['srs_seed'])) # fix seed simple random sampling
+# np.random.choice(range(5), size=2, replace=False) # global seed fixed
+rng = np.random.default_rng(seed=int(config['srs_seed'])) # local rand generator
+ind_va = np.sort(rng.choice(range(nb_batches), size=nb_va, replace=False))
+ind_tr = np.array(list(set(range(nb_batches)).difference(ind_va)))
+# ^ set diff: in range but not in ind_va
+
+print('Indices of va batches:\n',', '.join(map(str, ind_va)),'\n')
+
+nb_tr_loss = nb_tr*hor
+# ^ number of contributions to tr loss, some obs counted more than once if hor>1
+#   because batches overlap in time (shifted by 1 time step from one another)
+nb_va_loss = nb_va*hor
+
+
 
 #%% LSTM  model class
-i_size = xtr.shape[2] # nb cols in xtr = nb input features 
+i_size = nb_cov # xb.shape[2] # nb cols in x = nb input features 
 h_size = config['h_size']
 o_size = config['o_size']
 nb_layers = config['nb_layers']
@@ -244,9 +299,11 @@ h0 = torch.zeros(nb_layers, h_size) # num_layers, hidden_size
 c0 = torch.zeros(nb_layers, h_size) # num_layers, hidden_size
 
 nb_param = 4*h_size*i_size + 4*h_size*h_size + 4*h_size*2 + o_size*(h_size+1)
-nb_obs = len(seriesvec)*nT_tr # 
-print('Total number of parameters =',nb_param)
-print('Total number of training observations =',nb_obs,'\n')
+nb_obs = len(seriesvec)*nT # 
+print('Number of parameters =',nb_param)
+print('Total number of observations =',nb_obs)
+print('Number of training loss contributions =',nb_tr_loss)
+print('Number of validation loss contributions =',nb_va_loss,'\n')
 # print('\n')
 
 
@@ -298,27 +355,28 @@ while (epoch < maxepoch) :
     # model.train()
     optimizer.zero_grad()
     loss_tr = 0.0 # just to display
-    loss_va = 0.0 # record va loss
-    
-    for s in range(len(seriesvec)): # loop over series (dim 0)
-        xtr_s = torch.select(xtr, dim=0, index=s)
-        ytr_s = torch.select(ytr, dim=0, index=s).reshape(-1,1)
-        fwdpass = model(xtr_s, (h0,c0)) # from ini
-        y_pred = fwdpass[0] # whole series at once
-        losstr = loss_fn(y_pred, ytr_s)
+    loss_va = 0.0 # record va loss  
+    # for b in range(xtr_b.shape[0]): # loop over tr batches (s and t)
+    for b in ind_tr: # loop over tr batches (s and t)
+        fwdpass = model(xb[b,:,:], (h0,c0)) # from ini
+        y_pred = fwdpass[0][ind_hor] # eval loss only on horizon obs
+        losstr = loss_fn(y_pred, yb[b,ind_hor].reshape(-1,1))
         loss_tr += losstr.item()
         losstr.backward() # accumulate grad over series
-        with torch.no_grad():
-            xva_s = torch.select(xva, dim=0, index=s)
-            yva_s = torch.select(yva, dim=0, index=s).reshape(-1,1)
-            yva_pred = model(xva_s, fwdpass[1])[0]
-            loss_va += loss_fn(yva_pred, yva_s).item()
     
-    optimizer.step() # over all series
+    optimizer.step() # over all series and all subsets
     # scheduler.step() # update lr throughout epochs
     
     # if epoch%(maxepoch/10)==(maxepoch/10-1):
-    loss_tr = loss_tr/nb_obs # sum squared/absolute errors -> MSE/MAE
+    with torch.no_grad():
+        for b in ind_va: # loop over va batches (s and t)
+            fwdpass = model(xb[b,:,:], (h0,c0)) # from ini
+            y_pred = fwdpass[0][ind_hor] # eval loss only on horizon obs
+            loss_va += loss_fn(y_pred, yb[b,ind_hor].reshape(-1,1)).item()
+        
+    # loss_tr = loss_tr/nb_obs # sum squared/absolute errors -> MSE/MAE
+    loss_tr = loss_tr/nb_tr_loss # sum squared/absolute errors -> MSE/MAE
+    loss_va = loss_va/nb_va_loss # sum squared/absolute errors -> MSE/MAE
     print('epoch='+str(epoch)+': tr',config['loss'],'loss = {:.4f}'.format(loss_tr))
     lossvec_tr.append(loss_tr)
     lossvec_va.append(loss_va)
@@ -342,9 +400,9 @@ print('while loop took',round((wallclock1 - wallclock0)/60,1),'m\n')
 path_out = config['path_outputdir'] + '/' + config['prefixoutput']
 
 plt.figure(figsize=(12,6))
-plt.plot(range(maxepoch), np.array(lossvec_tr)/nT_tr, c=colvec[0], label='tr loss')
+plt.plot(range(maxepoch), np.array(lossvec_tr), c=colvec[0], label='tr loss')
 # plt.scatter(range(maxepoch), np.array(lossvec_tr)/nT_tr, s=16,c=colvec[0])
-plt.plot(range(maxepoch), np.array(lossvec_va)/nT_va, c=colvec[1], label='va loss')
+plt.plot(range(maxepoch), np.array(lossvec_va), c=colvec[1], label='va loss')
 # plt.scatter(range(maxepoch), np.array(lossvec_va)/nT_va, s=16, c=colvec[1])
 plt.legend(loc='upper right')
 plt.title('training and validation '+config['loss']+' loss over all series')
@@ -353,37 +411,70 @@ plt.close()
 
 model.eval()
 
+# assuming hor=1, so one obs per tr batch
+ytr = np.zeros(nb_tr)
+ytr_pred = np.zeros(nb_tr)
+for b in range(nb_tr): # loop over tr batches (s and t)
+    ind_tr_b = ind_tr[b]
+    fwdpass_b = model(xb[ind_tr_b,:,:], (h0,c0)) # from ini
+    ytr_pred[b] = fwdpass_b[0][ind_hor].detach().numpy().item()
+    ytr[b] = yb[ind_tr_b,ind_hor].reshape(-1,1).detach().numpy().item()
+
+print('tr R^2 =',round(r2_score(ytr, ytr_pred),4)) # R^2 on training batches
+
+yva = np.zeros(nb_va)
+yva_pred = np.zeros(nb_va)
+for b in range(nb_va): # loop over tr batches (s and t)
+    ind_va_b = ind_va[b]
+    fwdpass_b = model(xb[ind_va_b,:,:], (h0,c0)) # from ini
+    yva_pred[b] = fwdpass_b[0][ind_hor].detach().numpy().item()
+    yva[b] = yb[ind_va_b,ind_hor].reshape(-1,1).detach().numpy().item()
+
+print('va R^2 =',round(r2_score(yva, yva_pred),4)) # R^2 on validation batches
+
 s = 0 # 1st series as ref, plot only this one
-xtr_s = torch.select(xtr, dim=0, index=s)
-xva_s = torch.select(xva, dim=0, index=s)
-ytr_s = torch.select(ytr, dim=0, index=s).reshape(-1,1).detach().numpy()
-yva_s = torch.select(yva, dim=0, index=s).reshape(-1,1).detach().numpy()
-fwdpass_tr = model(xtr_s, (h0,c0)) # from ini over all ts
-ytr_pred = fwdpass_tr[0].detach().numpy() #
-yva_pred = model(xva_s, fwdpass_tr[1])[0].detach().numpy() #
-print('Series',seriesvec[s],'tr R^2 =',round(r2_score(ytr_s, ytr_pred),4)) # R^2 on training set
-print('Series',seriesvec[s],'va R^2 =',round(r2_score(yva_s, yva_pred),4)) # R^2 on validation set
+xfull_s = torch.select(xfull, dim=0, index=s)
+yfull_s = torch.select(yfull, dim=0, index=s).reshape(-1,1).detach().numpy()
+fwdpass_full = model(xfull_s, (h0,c0)) # from ini over all ts
+yfull_s_pred = fwdpass_full[0].detach().numpy() #
+print('Series',seriesvec[s],'full R^2 =',round(r2_score(yfull_s, yfull_s_pred),4)) # R^2 on training set
+# yva_pred = model(xva_s, fwdpass_tr[1])[0].detach().numpy() #
+# print('Series',seriesvec[s],'tr R^2 =',round(r2_score(ytr_s, ytr_pred),4)) # R^2 on training set
+# print('Series',seriesvec[s],'va R^2 =',round(r2_score(yva_s, yva_pred),4)) # R^2 on validation set
+
+
+ind_01_tr = [0] # ini
+for b in range(nb_tr): # loop over tr batches (s and t)
+    ind_tr_b = ind_tr[b]
+    if ind_tr_b < b_nb: # then batch in 1st series
+        ind_01_tr.append(ind_tr_b + b_len - 1) # index of obs contributing to loss
+
+ind_01_tr = ind_01_tr[1:] # excl ini 0
+
+ind_01_va = [0] # ini
+for b in range(nb_va): # loop over tr batches (s and t)
+    ind_va_b = ind_va[b]
+    if ind_va_b < b_nb: # then batch in 1st series
+        ind_01_va.append(ind_va_b + b_len -1 ) # index of obs contributing to loss
+
+ind_01_va = ind_01_va[1:] # excl ini 0
 
 plt.figure(figsize=(12,6))
-plt.scatter(ind_tr, ytr_s, s=16, c=colvec[0], label='tr')
-plt.scatter(ind_va, yva_s, s=16, c=colvec[1], label='va')
-plt.plot(ind_tr, ytr_pred, linewidth=1, color=colvec[0])
-plt.plot(ind_va, yva_pred, linewidth=1, color=colvec[1])
+plt.scatter(range(nT), yfull_s, s=10, c='grey', label='ini') # s=16
+plt.scatter(ind_01_tr, yfull_s[ind_01_tr], s=16, c=colvec[0], label='tr')
+plt.scatter(ind_01_va, yfull_s[ind_01_va], s=16, c=colvec[1], label='va')
+plt.plot(range(nT), yfull_s_pred, linewidth=1, color='black')
 plt.legend(loc='upper left')
 plt.title('series ' + seriesvec[s])
 plt.savefig(path_out + '_pred_series' + seriesvec[s] + '.pdf')
 plt.close()
 
 for s in range(1,len(seriesvec)): # loop over series (dim 0)
-    xtr_s = torch.select(xtr, dim=0, index=s)
-    xva_s = torch.select(xva, dim=0, index=s)
-    ytr_s = torch.select(ytr, dim=0, index=s).reshape(-1,1).detach().numpy()
-    yva_s = torch.select(yva, dim=0, index=s).reshape(-1,1).detach().numpy()
-    fwdpass_tr = model(xtr_s, (h0,c0)) # from ini over all ts
-    ytr_pred = fwdpass_tr[0].detach().numpy() #
-    yva_pred = model(xva_s, fwdpass_tr[1])[0].detach().numpy() #
-    print('Series',seriesvec[s],'tr R^2 =',round(r2_score(ytr_s, ytr_pred),4)) # R^2 on training set
-    print('Series',seriesvec[s],'va R^2 =',round(r2_score(yva_s, yva_pred),4)) # R^2 on validation set
+    xfull_s = torch.select(xfull, dim=0, index=s)
+    yfull_s = torch.select(yfull, dim=0, index=s).reshape(-1,1).detach().numpy()
+    fwdpass_full = model(xfull_s, (h0,c0)) # from ini over all ts
+    yfull_s_pred = fwdpass_full[0].detach().numpy() #
+    print('Series',seriesvec[s],'full R^2 =',round(r2_score(yfull_s, yfull_s_pred),4)) # R^2 on training set
 
 
 print('\n')

@@ -1,4 +1,4 @@
-# Configuration for twdlstm v0.2.1
+# Configuration for twdlstm v0.3
 
 path_data: '/mydata/forestcast/william/WP3/DataProcessed'
 path_outputdir: '/mydata/forestcast/william/WP3/LSTM_runs/outputs'
@@ -9,10 +9,15 @@ tstoy: '04' # '04' for tstoy04
 
 series: ['01','02'] # 01-42 in tstoy04, at least two
 
-date_t0: '2021-01-01' # assuming time points are daily
-# ind_t0: 366 # 2021-01-01
-nT_tr: 100 # size of tr set (time points), starts from date_t0
-nT_va: 10 # size of va set, starts right after the nT_tr time points
+date_t0: '2020-05-01' # assuming time points are daily
+# nT_tr: 100 # size of tr set (time points), starts from date_t0
+# nT_va: 10 # size of va set, starts right after the nT_tr time points
+nT: 40 # subset size (time points), split in batches, starts from date_t0
+prop_va: 0.2 # proportion of data batches held-out for va set
+srs_seed: 1234 # seed for simple random sampling for va subset
+
+batch_len: 8 # length of batches, both for tr and va
+loss_hor: 1 # how many values at end of each batch contribute to loss, tr and va
 
 covvec: ['pr', 'at']
 # covvec: ['pr', 'at', 'ws', 'dp', 'sr', 'lr'] # all in tstoy04
@@ -24,7 +29,7 @@ nb_layers: 1 # 1
 seed: 1234
 
 maxepoch: 10
-loss: 'MSE' # 'MSE', 'MAE'
+loss: 'MAE' # 'MSE', 'MAE'
 learning_rate: 1e-2 # 1e-2 is good, 1e-1 better if scheduling
 alphal2: 0.0 # L2 pen (weight decay) in RMSprop # 0.0, 0.5, 0.8
 momentum: 0.0 # momentum in RMSprop # 0.0, 0.5

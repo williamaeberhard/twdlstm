@@ -9,7 +9,8 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 
 ### Version history
 
-This is twdlstm version 0.2.1. Change log:
+This is twdlstm version 0.3. Change log:
+* v0.3: completely changed tr and va subsets. Entire time window (set by nT length in config) is split in batches of size batch_len (supplied in config), tr and va batches are randomly selected over all series with va size being specified by prop_va in config, and tr and va losses are only being evaluated at last loss_hor observations (also supplied in config, should stay 1 though otherwise overlap) within each batch.
 * v0.2.1:
   - fixed total number of parameters printed in log
   - added loss to config, choice betwen 'MSE' and 'MAE'.
