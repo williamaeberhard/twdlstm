@@ -1,4 +1,4 @@
-# Configuration for twdlstm v0.3
+# Configuration for twdlstm v0.3.1
 
 path_data: '/mydata/forestcast/william/WP3/DataProcessed'
 path_outputdir: '/mydata/forestcast/william/WP3/LSTM_runs/outputs'
@@ -26,7 +26,7 @@ h_size: 8 # 8,16,32,64 <= 32 generally good
 o_size: 1 # 1
 nb_layers: 1 # 1
 
-seed: 1234
+torch_seed: 123
 
 maxepoch: 10
 loss: 'MAE' # 'MSE', 'MAE'

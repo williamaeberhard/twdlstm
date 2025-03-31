@@ -1,4 +1,4 @@
-# twdlstm train v0.3
+# twdlstm train v0.3.1
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -44,7 +44,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm train v0.3\n')
+print(now_str + ' running twdlstm train v0.3.1\n')
 # print('\n')
 
 print('Supplied config:')
@@ -168,6 +168,13 @@ for s in range(1,nb_series): # loop over series after 1st
 # ytr.shape
 # yva.shape
 
+
+#%% torch tensor (check CPU or GPU)
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cpu")
+# print(device)
+torch.set_default_device(device)
+
 xfull = torch.tensor(x_full, dtype=torch.float32)
 yfull = torch.tensor(y_full, dtype=torch.float32)
 # xfull.shape
@@ -279,17 +286,25 @@ model.train() # print(model)
 
 
 #%% initial values
-torch.manual_seed(config['seed'])
-# torch.manual_seed(123)
+# torch.manual_seed(config['seed'])
+tgen = torch.Generator(device=device).manual_seed(config['torch_seed'])
+
+# state_dict_inirand = OrderedDict({
+#     'lstm.weight_ih_l0': torch.randn(4*h_size,i_size),
+#     'lstm.weight_hh_l0': torch.randn(4*h_size,h_size),
+#     'lstm.bias_ih_l0': torch.randn(4*h_size),
+#     'lstm.bias_hh_l0': torch.randn(4*h_size),
+#     'linear.weight': torch.randn(o_size,h_size),
+#     'linear.bias': torch.randn(o_size)
+# })
 state_dict_inirand = OrderedDict({
-    'lstm.weight_ih_l0': torch.randn(4*h_size,i_size),
-    'lstm.weight_hh_l0': torch.randn(4*h_size,h_size),
-    'lstm.bias_ih_l0': torch.randn(4*h_size),
-    'lstm.bias_hh_l0': torch.randn(4*h_size),
-    'linear.weight': torch.randn(o_size,h_size),
-    'linear.bias': torch.randn(o_size)
-})
-# print(state_dict_inirand['linear.bias']) # -0.6977 if seed=123
+    'lstm.weight_ih_l0': torch.randn(4*h_size,i_size,device=device,generator=tgen),
+    'lstm.weight_hh_l0': torch.randn(4*h_size,h_size,device=device,generator=tgen),
+    'lstm.bias_ih_l0': torch.randn(4*h_size,device=device,generator=tgen),
+    'lstm.bias_hh_l0': torch.randn(4*h_size,device=device,generator=tgen),
+    'linear.weight': torch.randn(o_size,h_size,device=device,generator=tgen),
+    'linear.bias': torch.randn(o_size,device=device,generator=tgen)
+})# print(state_dict_inirand['linear.bias']) # -0.6977 if seed=123
 model.load_state_dict(state_dict_inirand, strict=False)
 # ^ <All keys matched successfully> = ok
 
@@ -414,34 +429,53 @@ model.eval()
 # assuming hor=1, so one obs per tr batch
 ytr = np.zeros(nb_tr)
 ytr_pred = np.zeros(nb_tr)
-for b in range(nb_tr): # loop over tr batches (s and t)
-    ind_tr_b = ind_tr[b]
-    fwdpass_b = model(xb[ind_tr_b,:,:], (h0,c0)) # from ini
-    ytr_pred[b] = fwdpass_b[0][ind_hor].detach().numpy().item()
-    ytr[b] = yb[ind_tr_b,ind_hor].reshape(-1,1).detach().numpy().item()
+if device.type=='cuda': # need to transfer from GPU to CPU for np
+    for b in range(nb_tr): # loop over tr batches (s and t)
+        ind_tr_b = ind_tr[b]
+        fwdpass_b = model(xb[ind_tr_b,:,:], (h0,c0)) # from ini
+        ytr_pred[b] = fwdpass_b[0][ind_hor].cpu().detach().numpy().item()
+        ytr[b] = yb[ind_tr_b,ind_hor].reshape(-1,1).cpu().detach().numpy().item()
+else: # then device.type='cpu'
+    for b in range(nb_tr): # loop over tr batches (s and t)
+        ind_tr_b = ind_tr[b]
+        fwdpass_b = model(xb[ind_tr_b,:,:], (h0,c0)) # from ini
+        ytr_pred[b] = fwdpass_b[0][ind_hor].detach().numpy().item()
+        ytr[b] = yb[ind_tr_b,ind_hor].reshape(-1,1).detach().numpy().item()
 
 print('tr R^2 =',round(r2_score(ytr, ytr_pred),4)) # R^2 on training batches
 
 yva = np.zeros(nb_va)
 yva_pred = np.zeros(nb_va)
-for b in range(nb_va): # loop over tr batches (s and t)
-    ind_va_b = ind_va[b]
-    fwdpass_b = model(xb[ind_va_b,:,:], (h0,c0)) # from ini
-    yva_pred[b] = fwdpass_b[0][ind_hor].detach().numpy().item()
-    yva[b] = yb[ind_va_b,ind_hor].reshape(-1,1).detach().numpy().item()
+if device.type=='cuda': # need to transfer from GPU to CPU for np
+    for b in range(nb_va): # loop over tr batches (s and t)
+        ind_va_b = ind_va[b]
+        fwdpass_b = model(xb[ind_va_b,:,:], (h0,c0)) # from ini
+        yva_pred[b] = fwdpass_b[0][ind_hor].cpu().detach().numpy().item()
+        yva[b] = yb[ind_va_b,ind_hor].reshape(-1,1).cpu().detach().numpy().item()
+else: # then device.type='cpu'
+    for b in range(nb_va): # loop over tr batches (s and t)
+        ind_va_b = ind_va[b]
+        fwdpass_b = model(xb[ind_va_b,:,:], (h0,c0)) # from ini
+        yva_pred[b] = fwdpass_b[0][ind_hor].detach().numpy().item()
+        yva[b] = yb[ind_va_b,ind_hor].reshape(-1,1).detach().numpy().item()
 
 print('va R^2 =',round(r2_score(yva, yva_pred),4)) # R^2 on validation batches
 
 s = 0 # 1st series as ref, plot only this one
 xfull_s = torch.select(xfull, dim=0, index=s)
-yfull_s = torch.select(yfull, dim=0, index=s).reshape(-1,1).detach().numpy()
-fwdpass_full = model(xfull_s, (h0,c0)) # from ini over all ts
-yfull_s_pred = fwdpass_full[0].detach().numpy() #
+if device.type=='cuda': # need to transfer from GPU to CPU for np
+    fwdpass_full = model(xfull_s, (h0,c0)) # from ini over all ts
+    yfull_s = torch.select(yfull, dim=0, index=s).reshape(-1,1).cpu().detach().numpy()
+    yfull_s_pred = fwdpass_full[0].cpu().detach().numpy() #
+else: # then device.type='cpu'
+    fwdpass_full = model(xfull_s, (h0,c0)) # from ini over all ts
+    yfull_s = torch.select(yfull, dim=0, index=s).reshape(-1,1).detach().numpy()
+    yfull_s_pred = fwdpass_full[0].detach().numpy() #
+
 print('Series',seriesvec[s],'full R^2 =',round(r2_score(yfull_s, yfull_s_pred),4)) # R^2 on training set
 # yva_pred = model(xva_s, fwdpass_tr[1])[0].detach().numpy() #
 # print('Series',seriesvec[s],'tr R^2 =',round(r2_score(ytr_s, ytr_pred),4)) # R^2 on training set
 # print('Series',seriesvec[s],'va R^2 =',round(r2_score(yva_s, yva_pred),4)) # R^2 on validation set
-
 
 ind_01_tr = [0] # ini
 for b in range(nb_tr): # loop over tr batches (s and t)
@@ -471,10 +505,15 @@ plt.close()
 
 for s in range(1,len(seriesvec)): # loop over series (dim 0)
     xfull_s = torch.select(xfull, dim=0, index=s)
-    yfull_s = torch.select(yfull, dim=0, index=s).reshape(-1,1).detach().numpy()
     fwdpass_full = model(xfull_s, (h0,c0)) # from ini over all ts
-    yfull_s_pred = fwdpass_full[0].detach().numpy() #
+    if device.type=='cuda': # need to transfer from GPU to CPU for np
+        yfull_s = torch.select(yfull,dim=0,index=s).reshape(-1,1).cpu().detach().numpy()
+        yfull_s_pred = fwdpass_full[0].cpu().detach().numpy() #
+    else: # then device.type='cpu'
+        yfull_s = torch.select(yfull, dim=0, index=s).reshape(-1,1).detach().numpy()
+        yfull_s_pred = fwdpass_full[0].detach().numpy() #
     print('Series',seriesvec[s],'full R^2 =',round(r2_score(yfull_s, yfull_s_pred),4)) # R^2 on training set
+
 
 
 print('\n')
