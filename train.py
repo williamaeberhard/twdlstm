@@ -1,4 +1,4 @@
-# twdlstm train v0.3.1
+# twdlstm train v0.3.2
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -44,7 +44,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm train v0.3.1\n')
+print(now_str + ' running twdlstm train v0.3.2\n')
 # print('\n')
 
 print('Supplied config:')
@@ -230,7 +230,7 @@ nb_va_loss = nb_va*hor
 
 
 
-#%% LSTM  model class
+#%% LSTM model class
 i_size = nb_cov # xb.shape[2] # nb cols in x = nb input features 
 h_size = config['h_size']
 o_size = config['o_size']
@@ -286,6 +286,12 @@ model.train() # print(model)
 
 
 #%% initial values
+# path_ckpt = '/mydata/forestcast/william/WP3/LSTM_runs/checkpoints/00_ckpt_10.pt'
+# model.load_state_dict(torch.load(path_ckpt, weights_only=False)) # checkpoint
+
+h0 = torch.zeros(nb_layers, h_size) # num_layers, hidden_size
+c0 = torch.zeros(nb_layers, h_size) # num_layers, hidden_size
+
 # torch.manual_seed(config['seed'])
 tgen = torch.Generator(device=device).manual_seed(config['torch_seed'])
 
@@ -297,6 +303,7 @@ tgen = torch.Generator(device=device).manual_seed(config['torch_seed'])
 #     'linear.weight': torch.randn(o_size,h_size),
 #     'linear.bias': torch.randn(o_size)
 # })
+
 state_dict_inirand = OrderedDict({
     'lstm.weight_ih_l0': torch.randn(4*h_size,i_size,device=device,generator=tgen),
     'lstm.weight_hh_l0': torch.randn(4*h_size,h_size,device=device,generator=tgen),
@@ -304,14 +311,11 @@ state_dict_inirand = OrderedDict({
     'lstm.bias_hh_l0': torch.randn(4*h_size,device=device,generator=tgen),
     'linear.weight': torch.randn(o_size,h_size,device=device,generator=tgen),
     'linear.bias': torch.randn(o_size,device=device,generator=tgen)
-})# print(state_dict_inirand['linear.bias']) # -0.6977 if seed=123
+})
+# print(state_dict_inirand['linear.bias'])
+# print(model.state_dict()['linear.bias'])
 model.load_state_dict(state_dict_inirand, strict=False)
 # ^ <All keys matched successfully> = ok
-
-# h0 = torch.randn(nb_layers, h_size) # num_layers, hidden_size
-# c0 = torch.randn(nb_layers, h_size) # num_layers, hidden_size
-h0 = torch.zeros(nb_layers, h_size) # num_layers, hidden_size
-c0 = torch.zeros(nb_layers, h_size) # num_layers, hidden_size
 
 nb_param = 4*h_size*i_size + 4*h_size*h_size + 4*h_size*2 + o_size*(h_size+1)
 nb_obs = len(seriesvec)*nT # 
@@ -360,14 +364,21 @@ maxepoch = int(config['maxepoch'])
 # )
 # TODO: add scheduler
 
+
 #%% optim
+model.train()
+
+path_ckpt = config['path_checkpointdir'] + '/' + config['prefixoutput']
+step_ckpt = config['step_ckpt'] # 10
+# ^ print and record tr/va loss every maxepoch/step_ckpt
+
 epoch = 0
 lossvec_tr = []
 lossvec_va = []
+epochvec = []
 
 wallclock0 = time.time()
 while (epoch < maxepoch) :
-    # model.train()
     optimizer.zero_grad()
     loss_tr = 0.0 # just to display
     loss_va = 0.0 # record va loss  
@@ -382,49 +393,55 @@ while (epoch < maxepoch) :
     optimizer.step() # over all series and all subsets
     # scheduler.step() # update lr throughout epochs
     
-    # if epoch%(maxepoch/10)==(maxepoch/10-1):
-    with torch.no_grad():
-        for b in ind_va: # loop over va batches (s and t)
-            fwdpass = model(xb[b,:,:], (h0,c0)) # from ini
-            y_pred = fwdpass[0][ind_hor] # eval loss only on horizon obs
-            loss_va += loss_fn(y_pred, yb[b,ind_hor].reshape(-1,1)).item()
-        
-    # loss_tr = loss_tr/nb_obs # sum squared/absolute errors -> MSE/MAE
-    loss_tr = loss_tr/nb_tr_loss # sum squared/absolute errors -> MSE/MAE
-    loss_va = loss_va/nb_va_loss # sum squared/absolute errors -> MSE/MAE
-    print('epoch='+str(epoch)+': tr',config['loss'],'loss = {:.4f}'.format(loss_tr))
-    lossvec_tr.append(loss_tr)
-    lossvec_va.append(loss_va)
+    if epoch%(maxepoch/step_ckpt)==(maxepoch/step_ckpt-1):
+        with torch.no_grad():
+            for b in ind_va: # loop over va batches (s and t)
+                fwdpass = model(xb[b,:,:], (h0,c0)) # from ini
+                y_pred = fwdpass[0][ind_hor] # eval loss only on horizon obs
+                loss_va += loss_fn(y_pred, yb[b,ind_hor].reshape(-1,1)).item()
+        # loss_tr = loss_tr/nb_obs # sum squared/absolute errors -> MSE/MAE
+        loss_tr = loss_tr/nb_tr_loss # sum squared/absolute errors -> MSE/MAE
+        loss_va = loss_va/nb_va_loss # sum squared/absolute errors -> MSE/MAE
+        # save checkpoint for best intermediate fit
+        if not lossvec_va: # check if empty
+            torch.save(model.state_dict(), path_ckpt + '_ckpt_best.pt')
+            epoch_best = epoch
+        elif loss_va<min(lossvec_va):
+            torch.save(model.state_dict(), path_ckpt + '_ckpt_best.pt')
+            epoch_best = epoch
+        # print('epoch='+str(epoch)+': tr',config['loss'],'loss = {:.4f}'.format(loss_tr))
+        print('epoch='+str(epoch),config['loss'],'loss: tr = {:.4f}'.format(loss_tr)+', va = {:.4f}'.format(loss_va))
+        lossvec_tr.append(loss_tr)
+        lossvec_va.append(loss_va)
+        epochvec.append(epoch)
     
     epoch += 1
     # end while
 
 wallclock1 = time.time() # in seconds
 print('while loop took',round((wallclock1 - wallclock0)/60,1),'m\n')
-# print('\n')
 
-# grads = []
-# for param in model.parameters():
-#     grads.append(param.grad.view(-1))
+print('Smallest va loss at epoch =',epoch_best,'\n')
 
-# grads = torch.cat(grads) # print(grads.shape) # = nb_param
-# print('max abs grad =',round(max(np.abs(grads)).item(),2))
+
+# save estimated parameters (checkpoint)
+torch.save(model.state_dict(), path_ckpt + '_ckpt_' + str(epoch) + '.pt')
 
 
 #%% outputs from training and validation
+model.eval()
+
 path_out = config['path_outputdir'] + '/' + config['prefixoutput']
 
 plt.figure(figsize=(12,6))
-plt.plot(range(maxepoch), np.array(lossvec_tr), c=colvec[0], label='tr loss')
+plt.plot(epochvec, np.array(lossvec_tr), c=colvec[0], label='tr loss')
 # plt.scatter(range(maxepoch), np.array(lossvec_tr)/nT_tr, s=16,c=colvec[0])
-plt.plot(range(maxepoch), np.array(lossvec_va), c=colvec[1], label='va loss')
+plt.plot(epochvec, np.array(lossvec_va), c=colvec[1], label='va loss')
 # plt.scatter(range(maxepoch), np.array(lossvec_va)/nT_va, s=16, c=colvec[1])
 plt.legend(loc='upper right')
 plt.title('training and validation '+config['loss']+' loss over all series')
 plt.savefig(path_out + '_loss.pdf')
 plt.close()
-
-model.eval()
 
 # assuming hor=1, so one obs per tr batch
 ytr = np.zeros(nb_tr)

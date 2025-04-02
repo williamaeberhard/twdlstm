@@ -1,35 +1,43 @@
-# Configuration for twdlstm v0.3.1
+# Configuration for twdlstm v0.3.2
 
 path_data: '/mydata/forestcast/william/WP3/DataProcessed'
 path_outputdir: '/mydata/forestcast/william/WP3/LSTM_runs/outputs'
+path_checkpointdir: '/mydata/forestcast/william/WP3/LSTM_runs/checkpoints'
 
 prefixoutput: '00' #
 
 tstoy: '04' # '04' for tstoy04
 
-series: ['01','02'] # 01-42 in tstoy04, at least two
+# series: ["10", "28", "35", "36", "37", "38", "39"]
+# ^ Picea abies prop samp at 3 selected sites (among 4 after excl 1 series)
+series: ["10", "28"]
 
-date_t0: '2020-05-01' # assuming time points are daily
-# nT_tr: 100 # size of tr set (time points), starts from date_t0
-# nT_va: 10 # size of va set, starts right after the nT_tr time points
-nT: 40 # subset size (time points), split in batches, starts from date_t0
+# date_t0: '2021-01-01' # assuming time points are daily
+# ind_t0: 366 # 2021-01-01
+date_t0: '2020-01-01' # assuming time points are daily
+# nT_tr: 366 # size of tr set (time points), starts from date_t0
+# nT_va: 100 # size of va set, starts right after the nT_tr time points
+nT: 20 # subset size (time points), split in batches, starts from date_t0
 prop_va: 0.2 # proportion of data batches held-out for va set
 srs_seed: 1234 # seed for simple random sampling for va subset
 
-batch_len: 8 # length of batches, both for tr and va
+batch_len: 5 # length of batches, both for tr and va
 loss_hor: 1 # how many values at end of each batch contribute to loss, tr and va
 
 covvec: ['pr', 'at']
 # covvec: ['pr', 'at', 'ws', 'dp', 'sr', 'lr'] # all in tstoy04
 
-h_size: 8 # 8,16,32,64 <= 32 generally good
+h_size: 32 # 8,16,32,64 <= 32 generally good
 o_size: 1 # 1
 nb_layers: 1 # 1
 
-torch_seed: 123
+torch_seed: 123 # torch.randn
 
-maxepoch: 10
-loss: 'MAE' # 'MSE', 'MAE'
+maxepoch: 20 # 50, 100, 200, 500
+step_ckpt: 10 # 10
+# ^ print and record tr/va loss every maxepoch/step_ckpt epoch
+
+loss: 'MSE' # 'MSE', 'MAE'
 learning_rate: 1e-2 # 1e-2 is good, 1e-1 better if scheduling
 alphal2: 0.0 # L2 pen (weight decay) in RMSprop # 0.0, 0.5, 0.8
 momentum: 0.0 # momentum in RMSprop # 0.0, 0.5

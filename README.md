@@ -6,12 +6,17 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 
 ### Version history
 
-This is twdlstm version 0.3.1. Change log:
+This is twdlstm version 0.3.2. Change log:
+* v0.3.2:
+  - added path_checkpointdir and step_ckpt to config
+  - print and record tr/va loss every maxepoch/step_ckpt
+  - save model param at maxepoch as checkpoint (regardless of performance)
+  - save best param (smallest va loss) as checkpoint
 * v0.3.1: adapted train.py to run on CPU or GPU. No user option, if GPU available then cuda by default for all torch tensors (including randn).
 * v0.3: completely changed tr and va subsets. Entire time window (set by nT length in config) is split in batches of size batch_len (supplied in config), tr and va batches are randomly selected over all series with va size being specified by prop_va in config, and tr and va losses are only being evaluated at last loss_hor observations (also supplied in config, should stay 1 though otherwise overlap) within each batch.
 * v0.2.1:
   - fixed total number of parameters printed in log
-  - added loss to config, choice betwen 'MSE' and 'MAE'.
+  - added loss to config, choice betwen 'MSE' and 'MAE'
 * v0.2: arbitrary number of series can be supplied (>=2), loop over seriesvec
 * v0.1.1: fixed datetime stamp for Europe/Zurich tz
 * v0.1: initial release
