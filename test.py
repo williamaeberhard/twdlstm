@@ -308,6 +308,8 @@ else: # then device.type='cpu'
 
 
 #%% compute te perf metric by series
+ind_t_pred = range(int(b_len-hor), nT) # burn-in of b_len-1
+
 biasvec = np.zeros(nb_series)
 scalevec = np.zeros(nb_series)
 rvec = np.zeros(nb_series)
@@ -315,12 +317,12 @@ r2vec = np.zeros(nb_series)
 MAPEvec = np.zeros(nb_series)
 MedAEvec = np.zeros(nb_series)
 for s in range(nb_series): # loop over series (dim 0)
-    biasvec[s] = np.mean(yte[:,s]) - np.mean(yte_pred[:,s])
-    scalevec[s] = np.std(yte[:,s])/np.std(yte_pred[:,s])
-    rvec[s] = np.corrcoef(yte[:,s], yte_pred[:,s])[0,1]
-    r2vec[s] = r2_score(yte[:,s], yte_pred[:,s])
-    MAPEvec[s] = mean_absolute_percentage_error(yte[:,s], yte_pred[:,s])
-    MedAEvec[s] = median_absolute_error(yte[:,s], yte_pred[:,s])
+    biasvec[s] = np.mean(yte[ind_t_pred,s]) - np.mean(yte_pred[ind_t_pred,s])
+    scalevec[s] = np.std(yte[ind_t_pred,s])/np.std(yte_pred[ind_t_pred,s])
+    rvec[s] = np.corrcoef(yte[ind_t_pred,s], yte_pred[ind_t_pred,s])[0,1]
+    r2vec[s] = r2_score(yte[ind_t_pred,s], yte_pred[ind_t_pred,s])
+    MAPEvec[s] = mean_absolute_percentage_error(yte[ind_t_pred,s], yte_pred[ind_t_pred,s])
+    MedAEvec[s] = median_absolute_error(yte[ind_t_pred,s], yte_pred[ind_t_pred,s])
     print('* Series',seriesvec[s],'te metrics:') # 
     print('  - mean(obs)-mean(pred) =',round(biasvec[s],4)) # diff of means
     print('  - sd(obs)/sd(pred) =',round(scalevec[s],4)) # ratio of scales
@@ -334,8 +336,6 @@ for s in range(nb_series): # loop over series (dim 0)
 path_out_te = config['path_outputdir'] + '/' + config['prefixoutput'] + '_te'
 if not os.path.exists(path_out_te):
     os.makedirs(path_out_te) # create te output dir if does not exist
-
-ind_t_pred = range(int(b_len-hor), nT) # burn-in of b_len-1
 
 for s in range(nb_series): # loop over series (dim 0)
     plt.figure(figsize=(12,6))
