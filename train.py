@@ -1,4 +1,4 @@
-# twdlstm train v0.3.2
+# twdlstm train v0.4
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -44,14 +44,15 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm train v0.3.2\n')
+print(now_str + ' running twdlstm train v0.4\n')
 # print('\n')
 
 print('Supplied config:')
 print(path_config+'\n')
 # print('\n')
 
-seriesvec = config['series']
+# seriesvec = config['series'] # up to v0.3.2
+seriesvec = config['series_trva'] # as of v0.4, distinguish from series_te
 covvec = config['covvec']
 # nT_tr = config['nT_tr'] # size of tr set
 # nT_va = config['nT_va'] # size of va set
@@ -282,7 +283,7 @@ class Model_LSTM(torch.nn.Module):
 
 
 model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
-model.train() # print(model)
+# model.train() # print(model)
 
 
 #%% initial values

@@ -6,7 +6,10 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 
 ### Version history
 
-This is twdlstm version 0.3.2. Change log:
+This is twdlstm version 0.4. Change log:
+* v0.4:
+  - adapted train.py for series_trva (distinct now from series_te in config)
+  - created test.py to deploy fitted LSTM (from train.py) on te series
 * v0.3.2:
   - added path_checkpointdir and step_ckpt to config
   - print and record tr/va loss every maxepoch/step_ckpt

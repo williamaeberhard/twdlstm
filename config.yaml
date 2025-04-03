@@ -1,4 +1,4 @@
-# Configuration for twdlstm v0.3.2
+# Configuration for twdlstm v0.4
 
 path_data: '/mydata/forestcast/william/WP3/DataProcessed'
 path_outputdir: '/mydata/forestcast/william/WP3/LSTM_runs/outputs'
@@ -8,9 +8,12 @@ prefixoutput: '00' #
 
 tstoy: '04' # '04' for tstoy04
 
-# series: ["10", "28", "35", "36", "37", "38", "39"]
+# series: ["10", "28", "35", "36", "37", "38", "39"] # full
 # ^ Picea abies prop samp at 3 selected sites (among 4 after excl 1 series)
-series: ["10", "28"]
+series_trva: ["10", "28"]
+# series_te: ["11", "12", "16", "17", "29", "40", "41"] # full
+series_te: ["11", "12", "16"]
+# ^ trva (tr and va) used by train.py, te only used by test.py
 
 # date_t0: '2021-01-01' # assuming time points are daily
 # ind_t0: 366 # 2021-01-01
