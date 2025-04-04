@@ -6,7 +6,8 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 
 ### Version history
 
-This is twdlstm version 0.4. Change log:
+This is twdlstm version 0.4.1. Change log:
+* v0.4.1: added Laplacian regularizer (sum of abs diff of pred within batch) in train.py, with lambda_LaplacianReg hyperparameter supplied in config.
 * v0.4:
   - adapted train.py for series_trva (distinct now from series_te in config)
   - created test.py to deploy fitted LSTM (from train.py) on te series

@@ -1,4 +1,4 @@
-# twdlstm train v0.4
+# twdlstm train v0.4.1
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -44,7 +44,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm train v0.4\n')
+print(now_str + ' running twdlstm train v0.4.1\n')
 # print('\n')
 
 print('Supplied config:')
@@ -366,11 +366,26 @@ maxepoch = int(config['maxepoch'])
 # TODO: add scheduler
 
 
+#%% construct Laplacian regularization matrix
+step_ckpt = config['step_ckpt'] # 10
+
+lapmat = np.eye(step_ckpt,k=-1)+np.eye(step_ckpt,k=1)-2*np.eye(step_ckpt)
+lapmat[0,0] = -1.0                     # rows should add up to 0
+lapmat[step_ckpt-1,step_ckpt-1] = -1.0 # rows should add up to 0
+# lapmat # 1st order differences, to apply on y_pred for every batch
+
+lapmat[slice(0,int(step_ckpt/2)),:] = 0.0 # not pen first half of pred
+# lapmat
+
+lap = torch.tensor(lapmat, dtype=torch.float32)
+
+hp_lambda = config['lambda_LaplacianReg']
+
+
 #%% optim
 model.train()
 
 path_ckpt = config['path_checkpointdir'] + '/' + config['prefixoutput']
-step_ckpt = config['step_ckpt'] # 10
 # ^ print and record tr/va loss every maxepoch/step_ckpt
 
 epoch = 0
@@ -386,10 +401,12 @@ while (epoch < maxepoch) :
     # for b in range(xtr_b.shape[0]): # loop over tr batches (s and t)
     for b in ind_tr: # loop over tr batches (s and t)
         fwdpass = model(xb[b,:,:], (h0,c0)) # from ini
-        y_pred = fwdpass[0][ind_hor] # eval loss only on horizon obs
-        losstr = loss_fn(y_pred, yb[b,ind_hor].reshape(-1,1))
+        y_pred = fwdpass[0] # eval loss only on horizon obs
+        lap_reg = torch.norm(torch.matmul(lap, y_pred),1) # sum abs diff
+        y_b_tmp = yb[b,ind_hor].reshape(-1,1)
+        losstr = loss_fn(y_pred[ind_hor], y_b_tmp) + hp_lambda*lap_reg
         loss_tr += losstr.item()
-        losstr.backward() # accumulate grad over series
+        losstr.backward() # accumulate grad over batches
     
     optimizer.step() # over all series and all subsets
     # scheduler.step() # update lr throughout epochs

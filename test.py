@@ -1,4 +1,4 @@
-# twdlstm test v0.4
+# twdlstm test v0.4.1
 
 import sys # CLI arguments: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -46,7 +46,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm test v0.4\n')
+print(now_str + ' running twdlstm test v0.4.1\n')
 # print('\n')
 
 print('Supplied config:')
