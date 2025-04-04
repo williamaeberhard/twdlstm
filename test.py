@@ -175,10 +175,13 @@ b_nb = int(nT - b_len + 1) # int(nT_tr - b_len + 1)
 # # xb.shape # batches = dim 0
 # # yb.shape # batches = dim 0
 
-hor = config['loss_hor']
+# hor = config['loss_hor']
+hor = 1
+# ^ v0.4.2: hor fixed to 1, only last obs of each batch contributes to loss
 ind_hor = range(int(b_len-hor),b_len)
 slice_hor = int(b_len-hor) # assuming hor=1
 # ^ indices of obs contributing to loss eval within each batch
+
 
 
 #%% create tr and va subsets of batches
