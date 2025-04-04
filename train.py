@@ -1,4 +1,4 @@
-# twdlstm train v0.4.1
+# twdlstm train v0.4.2
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -44,7 +44,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm train v0.4.1\n')
+print(now_str + ' running twdlstm train v0.4.2\n')
 # print('\n')
 
 print('Supplied config:')
@@ -203,9 +203,12 @@ for s in range(nb_series): # loop over series (dim 0)
 # xb.shape # batches = dim 0
 # yb.shape # batches = dim 0
 
-hor = config['loss_hor']
-ind_hor = range(int(b_len-hor),b_len)
+# hor = config['loss_hor']
+# ^ v0.4.2: hor fixed to 1, only last obs of each batch contributes to loss
+# ind_hor = range(int(b_len-hor),b_len)
+ind_hor = -1 # v0.4.2: only last obs
 # ^ indices of obs contributing to loss eval within each batch
+
 
 
 #%% create tr and va subsets of batches
@@ -224,10 +227,10 @@ ind_tr = np.array(list(set(range(nb_batches)).difference(ind_va)))
 
 print('Indices of va batches:\n',', '.join(map(str, ind_va)),'\n')
 
-nb_tr_loss = nb_tr*hor
+nb_tr_loss = nb_tr # nb_tr*hor
 # ^ number of contributions to tr loss, some obs counted more than once if hor>1
 #   because batches overlap in time (shifted by 1 time step from one another)
-nb_va_loss = nb_va*hor
+nb_va_loss = nb_va # nb_va*hor
 
 
 
@@ -367,25 +370,28 @@ maxepoch = int(config['maxepoch'])
 
 
 #%% construct Laplacian regularization matrix
-step_ckpt = config['step_ckpt'] # 10
+len_reg = config['len_reg']
+# ^ nb of pred at end of batch that are Laplacian-regularized
 
-lapmat = np.eye(step_ckpt,k=-1)+np.eye(step_ckpt,k=1)-2*np.eye(step_ckpt)
+lapmat = np.eye(len_reg,k=-1)+np.eye(len_reg,k=1)-2*np.eye(len_reg)
 lapmat[0,0] = -1.0                     # rows should add up to 0
-lapmat[step_ckpt-1,step_ckpt-1] = -1.0 # rows should add up to 0
+lapmat[len_reg-1,len_reg-1] = -1.0 # rows should add up to 0
 # lapmat # 1st order differences, to apply on y_pred for every batch
 
-lapmat[slice(0,int(step_ckpt/2)),:] = 0.0 # not pen first half of pred
-# lapmat
+# lapmat[slice(0,int(len_reg/2)),:] = 0.0 # not pen first half of pred
+# ^ v0.4.2: not necessary anymore, nb regularized pred set by len_reg 
 
 lap = torch.tensor(lapmat, dtype=torch.float32)
 
-hp_lambda = config['lambda_LaplacianReg']
+hp_lambda = config['lambda_LaplacianReg']/len_reg
+# ^ v0.4.2: lambda scaled by len_reg so pen is mean abs diff
 
 
 #%% optim
 model.train()
 
 path_ckpt = config['path_checkpointdir'] + '/' + config['prefixoutput']
+step_ckpt = config['step_ckpt'] # 10
 # ^ print and record tr/va loss every maxepoch/step_ckpt
 
 epoch = 0
@@ -401,7 +407,8 @@ while (epoch < maxepoch) :
     # for b in range(xtr_b.shape[0]): # loop over tr batches (s and t)
     for b in ind_tr: # loop over tr batches (s and t)
         fwdpass = model(xb[b,:,:], (h0,c0)) # from ini
-        y_pred = fwdpass[0] # eval loss only on horizon obs
+        # y_pred = fwdpass[0] # eval loss only on horizon obs
+        y_pred = fwdpass[0][-len_reg:,:] # v0.4.2
         lap_reg = torch.norm(torch.matmul(lap, y_pred),1) # sum abs diff
         y_b_tmp = yb[b,ind_hor].reshape(-1,1)
         losstr = loss_fn(y_pred[ind_hor], y_b_tmp) + hp_lambda*lap_reg
