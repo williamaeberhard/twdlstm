@@ -6,7 +6,8 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 
 ### Version history
 
-This is twdlstm version 0.4.2. Change log:
+This is twdlstm version 0.4.3. Change log:
+* v0.4.3: added optim choice in config yaml, for train.py.
 * v0.4.2: changed scheme for Laplacian regularization in train.py. Now hor is hard-coded to 1 (last obs in batch contributes to loss) and len_reg in config is the number of pred at the end of every batch that are Laplacian-regularized. Also, hp_lambda is no scaled by len_reg so the penalty is the mean of absolute differences.
 * v0.4.1: added Laplacian regularizer (sum of abs diff of pred within batch) in train.py, with lambda_LaplacianReg hyperparameter supplied in config.
 * v0.4:

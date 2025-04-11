@@ -1,4 +1,4 @@
-# Configuration for twdlstm v0.4.2
+# Configuration for twdlstm v0.4.3
 
 path_data: '/mydata/forestcast/william/WP3/DataProcessed'
 path_outputdir: '/mydata/forestcast/william/WP3/LSTM_runs/outputs'
@@ -46,11 +46,12 @@ maxepoch: 20 # 50, 100, 200, 500
 step_ckpt: 10 # 10
 # ^ print and record tr/va loss every maxepoch/step_ckpt epoch
 
-loss: 'MSE' # 'MSE', 'MAE'
+loss: 'MAE' # 'MSE', 'MAE'
+optim: 'AdamW' # 'RMSprop', 'Adam', 'AdamW', 'RAdam'
 learning_rate: 1e-2 # 1e-2 is good, 1e-1 better if scheduling
-alphal2: 0.0 # L2 pen (weight decay) in RMSprop # 0.0, 0.5, 0.8
+alphal2: 0.1 # L2 pen (weight decay) # 0.0, 0.5, 0.8
 momentum: 0.0 # momentum in RMSprop # 0.0, 0.5
 
 # run from /mydata/forestcast/william/WP3:
-# nohup python src/twdlstm/train.py LSTM_runs/configs/config_00.yaml > LSTM_runs/logs/log_00.txt &
-
+# python src/twdlstm/train.py LSTM_runs/configs/config_00.yaml > LSTM_runs/logs/log_00.txt
+# python src/twdlstm/test.py LSTM_runs/configs/config_00.yaml > LSTM_runs/logs/log_te_00.txt

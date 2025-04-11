@@ -1,4 +1,4 @@
-# twdlstm train v0.4.2
+# twdlstm train v0.4.3
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -44,7 +44,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm train v0.4.2\n')
+print(now_str + ' running twdlstm train v0.4.3\n')
 # print('\n')
 
 print('Supplied config:')
@@ -343,15 +343,33 @@ elif config['loss']=='MAE':
 learning_rate = float(config['learning_rate'])
 alphal2 = config['alphal2']
 momentum = config['momentum']
+optim = config['optim']
 
-optimizer = torch.optim.RMSprop(
-    model.parameters(),
-    lr=learning_rate,
-    alpha=alphal2,
-    momentum=momentum
-)
-# optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-# TODO: add optim in config
+if optim=='RMSprop':
+    optimizer = torch.optim.RMSprop(
+        model.parameters(),
+        lr=learning_rate,
+        alpha=alphal2,
+        momentum=momentum
+    )
+elif optim=='Adam':
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=learning_rate,
+        weight_decay=alphal2
+    )
+elif optim=='AdamW':
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=learning_rate,
+        weight_decay=alphal2
+    )
+elif optim=='RAdam':
+    optimizer = torch.optim.RAdam(
+        model.parameters(),
+        lr=learning_rate,
+        weight_decay=alphal2
+    )
 
 maxepoch = int(config['maxepoch'])
 
