@@ -466,12 +466,15 @@ print('while loop took',round((wallclock1 - wallclock0)/60,1),'m\n')
 
 print('Smallest va loss at epoch =',epoch_best,'\n')
 
-
-# save estimated parameters (checkpoint)
+# save estimated parameters (checkpoint) at max epoch
 torch.save(model.state_dict(), path_ckpt + '_ckpt_' + str(epoch) + '.pt')
 
 
 #%% outputs from training and validation
+# load best set of param among epochs (best = smallest va loss)
+model.load_state_dict(torch.load(path_ckpt+'_ckpt_best.pt', weights_only=False))
+# ^ <All keys matched successfully> = ok
+
 model.eval()
 
 path_out = config['path_outputdir'] + '/' + config['prefixoutput']
