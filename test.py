@@ -1,4 +1,4 @@
-# twdlstm test v0.4.3
+# twdlstm test v0.4.4
 
 import sys # CLI arguments: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -46,7 +46,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm test v0.4.3\n')
+print(now_str + ' running twdlstm test v0.4.4\n')
 # print('\n')
 
 print('Supplied config:')
@@ -317,21 +317,18 @@ biasvec = np.zeros(nb_series)
 scalevec = np.zeros(nb_series)
 rvec = np.zeros(nb_series)
 r2vec = np.zeros(nb_series)
-MAPEvec = np.zeros(nb_series)
 MedAEvec = np.zeros(nb_series)
 for s in range(nb_series): # loop over series (dim 0)
     biasvec[s] = np.mean(yte[ind_t_pred,s]) - np.mean(yte_pred[ind_t_pred,s])
     scalevec[s] = np.std(yte[ind_t_pred,s])/np.std(yte_pred[ind_t_pred,s])
     rvec[s] = np.corrcoef(yte[ind_t_pred,s], yte_pred[ind_t_pred,s])[0,1]
     r2vec[s] = r2_score(yte[ind_t_pred,s], yte_pred[ind_t_pred,s])
-    MAPEvec[s] = mean_absolute_percentage_error(yte[ind_t_pred,s], yte_pred[ind_t_pred,s])
     MedAEvec[s] = median_absolute_error(yte[ind_t_pred,s], yte_pred[ind_t_pred,s])
     print('* Series',seriesvec[s],'te metrics:') # 
     print('  - mean(obs)-mean(pred) =',round(biasvec[s],4)) # diff of means
     print('  - sd(obs)/sd(pred) =',round(scalevec[s],4)) # ratio of scales
     print('  - lin corr =',round(rvec[s],4)) # lin corr
     print('  - R^2 =',round(r2vec[s],4)) # R^2 on te batches, by series
-    print('  - MAPE =',round(MAPEvec[s],4)) # R^2 on te batches, by series
     print('  - MedAE =',round(MedAEvec[s],4)) # R^2 on te batches, by series
 
 

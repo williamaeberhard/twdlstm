@@ -1,4 +1,4 @@
-# twdlstm train v0.4.3
+# twdlstm train v0.4.4
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -44,7 +44,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm train v0.4.3\n')
+print(now_str + ' running twdlstm train v0.4.4\n')
 # print('\n')
 
 print('Supplied config:')
@@ -477,7 +477,11 @@ model.load_state_dict(torch.load(path_ckpt+'_ckpt_best.pt', weights_only=False))
 
 model.eval()
 
-path_out = config['path_outputdir'] + '/' + config['prefixoutput']
+# path_out = config['path_outputdir'] + '/' + config['prefixoutput']
+path_out_trva = config['path_outputdir'] + '/' + config['prefixoutput'] + '_trva/'
+if not os.path.exists(path_out_trva):
+    os.makedirs(path_out_trva) # create te output dir if does not exist
+
 
 plt.figure(figsize=(12,6))
 plt.plot(epochvec, np.array(lossvec_tr), c=colvec[0], label='tr loss')
@@ -486,7 +490,8 @@ plt.plot(epochvec, np.array(lossvec_va), c=colvec[1], label='va loss')
 # plt.scatter(range(maxepoch), np.array(lossvec_va)/nT_va, s=16, c=colvec[1])
 plt.legend(loc='upper right')
 plt.title('training and validation '+config['loss']+' loss over all series')
-plt.savefig(path_out + '_loss.pdf')
+# plt.savefig(path_out + '_loss.pdf')
+plt.savefig(path_out_trva + 'loss.pdf')
 plt.close()
 
 # assuming hor=1, so one obs per tr batch
@@ -524,60 +529,62 @@ else: # then device.type='cpu'
 
 print('va R^2 =',round(r2_score(yva, yva_pred),4)) # R^2 on validation batches
 
-s = 0 # 1st series as ref, plot only this one
-xfull_s = torch.select(xfull, dim=0, index=s)
-if device.type=='cuda': # need to transfer from GPU to CPU for np
-    fwdpass_full = model(xfull_s, (h0,c0)) # from ini over all ts
-    yfull_s = torch.select(yfull, dim=0, index=s).reshape(-1,1).cpu().detach().numpy()
-    yfull_s_pred = fwdpass_full[0].cpu().detach().numpy() #
-else: # then device.type='cpu'
-    fwdpass_full = model(xfull_s, (h0,c0)) # from ini over all ts
-    yfull_s = torch.select(yfull, dim=0, index=s).reshape(-1,1).detach().numpy()
-    yfull_s_pred = fwdpass_full[0].detach().numpy() #
 
-print('Series',seriesvec[s],'full R^2 =',round(r2_score(yfull_s, yfull_s_pred),4)) # R^2 on training set
-# yva_pred = model(xva_s, fwdpass_tr[1])[0].detach().numpy() #
-# print('Series',seriesvec[s],'tr R^2 =',round(r2_score(ytr_s, ytr_pred),4)) # R^2 on training set
-# print('Series',seriesvec[s],'va R^2 =',round(r2_score(yva_s, yva_pred),4)) # R^2 on validation set
-
-ind_01_tr = [0] # ini
-for b in range(nb_tr): # loop over tr batches (s and t)
-    ind_tr_b = ind_tr[b]
-    if ind_tr_b < b_nb: # then batch in 1st series
-        ind_01_tr.append(ind_tr_b + b_len - 1) # index of obs contributing to loss
-
-ind_01_tr = ind_01_tr[1:] # excl ini 0
-
-ind_01_va = [0] # ini
-for b in range(nb_va): # loop over tr batches (s and t)
-    ind_va_b = ind_va[b]
-    if ind_va_b < b_nb: # then batch in 1st series
-        ind_01_va.append(ind_va_b + b_len -1 ) # index of obs contributing to loss
-
-ind_01_va = ind_01_va[1:] # excl ini 0
-
-plt.figure(figsize=(12,6))
-plt.scatter(range(nT), yfull_s, s=10, c='grey', label='ini') # s=16
-plt.scatter(ind_01_tr, yfull_s[ind_01_tr], s=16, c=colvec[0], label='tr')
-plt.scatter(ind_01_va, yfull_s[ind_01_va], s=16, c=colvec[1], label='va')
-plt.plot(range(nT), yfull_s_pred, linewidth=1, color='black')
-plt.legend(loc='upper left')
-plt.title('series ' + seriesvec[s])
-plt.savefig(path_out + '_pred_series' + seriesvec[s] + '.pdf')
-plt.close()
-
-for s in range(1,len(seriesvec)): # loop over series (dim 0)
+# s = 0 # 1st series as ref, plot only this one
+for s in range(len(seriesvec)): # loop over series (dim 0)
     xfull_s = torch.select(xfull, dim=0, index=s)
-    fwdpass_full = model(xfull_s, (h0,c0)) # from ini over all ts
     if device.type=='cuda': # need to transfer from GPU to CPU for np
-        yfull_s = torch.select(yfull,dim=0,index=s).reshape(-1,1).cpu().detach().numpy()
+        fwdpass_full = model(xfull_s, (h0,c0)) # from ini over all ts
+        yfull_s = torch.select(yfull, dim=0, index=s).reshape(-1,1).cpu().detach().numpy()
         yfull_s_pred = fwdpass_full[0].cpu().detach().numpy() #
     else: # then device.type='cpu'
+        fwdpass_full = model(xfull_s, (h0,c0)) # from ini over all ts
         yfull_s = torch.select(yfull, dim=0, index=s).reshape(-1,1).detach().numpy()
         yfull_s_pred = fwdpass_full[0].detach().numpy() #
+    
     print('Series',seriesvec[s],'full R^2 =',round(r2_score(yfull_s, yfull_s_pred),4)) # R^2 on training set
+    # yva_pred = model(xva_s, fwdpass_tr[1])[0].detach().numpy() #
+    # print('Series',seriesvec[s],'tr R^2 =',round(r2_score(ytr_s, ytr_pred),4)) # R^2 on training set
+    # print('Series',seriesvec[s],'va R^2 =',round(r2_score(yva_s, yva_pred),4)) # R^2 on validation set
+    
+    ind_01_tr = [0] # ini
+    for b in range(nb_tr): # loop over tr batches (s and t)
+        ind_tr_b = ind_tr[b]
+        if ind_tr_b < b_nb: # then batch in 1st series
+            ind_01_tr.append(ind_tr_b + b_len - 1) # index of obs contributing to loss
+    
+    ind_01_tr = ind_01_tr[1:] # excl ini 0
+    
+    ind_01_va = [0] # ini
+    for b in range(nb_va): # loop over tr batches (s and t)
+        ind_va_b = ind_va[b]
+        if ind_va_b < b_nb: # then batch in 1st series
+            ind_01_va.append(ind_va_b + b_len -1 ) # index of obs contributing to loss
+    
+    ind_01_va = ind_01_va[1:] # excl ini 0
+    
+    plt.figure(figsize=(12,6))
+    plt.scatter(range(nT), yfull_s, s=10, c='grey', label='ini') # s=16
+    plt.scatter(ind_01_tr, yfull_s[ind_01_tr], s=16, c=colvec[0], label='tr')
+    plt.scatter(ind_01_va, yfull_s[ind_01_va], s=16, c=colvec[1], label='va')
+    plt.plot(range(nT), yfull_s_pred, linewidth=1, color='black')
+    plt.legend(loc='upper left')
+    plt.title('series ' + seriesvec[s])
+    # plt.savefig(path_out + '_pred_series' + seriesvec[s] + '.pdf')
+    plt.savefig(path_out_trva + 'ts_series' + seriesvec[s] + '.pdf')
+    plt.close()
 
 
+# for s in range(1,len(seriesvec)): # loop over series (dim 0)
+#     xfull_s = torch.select(xfull, dim=0, index=s)
+#     fwdpass_full = model(xfull_s, (h0,c0)) # from ini over all ts
+#     if device.type=='cuda': # need to transfer from GPU to CPU for np
+#         yfull_s = torch.select(yfull,dim=0,index=s).reshape(-1,1).cpu().detach().numpy()
+#         yfull_s_pred = fwdpass_full[0].cpu().detach().numpy() #
+#     else: # then device.type='cpu'
+#         yfull_s = torch.select(yfull, dim=0, index=s).reshape(-1,1).detach().numpy()
+#         yfull_s_pred = fwdpass_full[0].detach().numpy() #
+#     print('Series',seriesvec[s],'full R^2 =',round(r2_score(yfull_s, yfull_s_pred),4)) # R^2 on training set
 
 print('\n')
 print('done')

@@ -6,7 +6,10 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 
 ### Version history
 
-This is twdlstm version 0.4.3. Change log:
+This is twdlstm version 0.4.4. Change log:
+* v0.4.4:
+  - removed MAPE from test.py metrics, useless
+  - create sub-dir for trva output, plot ts full pred for all trva series now
 * v0.4.3:
   - added optim choice in config yaml, for train.py.
   - in train.py, now loading best param over epoch (and not keeping the last one) for outputs
