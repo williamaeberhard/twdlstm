@@ -1,4 +1,4 @@
-# twdlstm test v0.4.4
+# twdlstm test v0.5
 
 import sys # CLI arguments: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 import torch
 from torch.utils.data import TensorDataset, DataLoader
-from sklearn.metrics import r2_score, mean_absolute_percentage_error, median_absolute_error
+from sklearn.metrics import r2_score, median_absolute_error
 from collections import OrderedDict # saving/loading model state_dict
 
 # torch.cuda.is_available() # check GPU
@@ -46,7 +46,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm test v0.4.4\n')
+print(now_str + ' running twdlstm test v0.5\n')
 # print('\n')
 
 print('Supplied config:')
@@ -349,8 +349,9 @@ for s in range(nb_series): # loop over series (dim 0)
     plt.close()
 
 
-
 print('\n')
+now_again_str = now.strftime("%Y-%m-%d %H:%M:%S")
+print(now_again_str)
 print('done')
 
 # END twdlstm test

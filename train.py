@@ -1,4 +1,4 @@
-# twdlstm train v0.4.4
+# twdlstm train v0.5
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -44,7 +44,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm train v0.4.4\n')
+print(now_str + ' running twdlstm train v0.5\n')
 # print('\n')
 
 print('Supplied config:')
@@ -427,9 +427,10 @@ while (epoch < maxepoch) :
         fwdpass = model(xb[b,:,:], (h0,c0)) # from ini
         # y_pred = fwdpass[0] # eval loss only on horizon obs
         y_pred = fwdpass[0][-len_reg:,:] # v0.4.2
+        y_pred = y_pred[ind_hor].reshape(-1,1) # v0.5, cleaner
         lap_reg = torch.norm(torch.matmul(lap, y_pred),1) # sum abs diff
         y_b_tmp = yb[b,ind_hor].reshape(-1,1)
-        losstr = loss_fn(y_pred[ind_hor], y_b_tmp) + hp_lambda*lap_reg
+        losstr = loss_fn(y_pred, y_b_tmp) + hp_lambda*lap_reg
         loss_tr += losstr.item()
         losstr.backward() # accumulate grad over batches
     
@@ -440,7 +441,7 @@ while (epoch < maxepoch) :
         with torch.no_grad():
             for b in ind_va: # loop over va batches (s and t)
                 fwdpass = model(xb[b,:,:], (h0,c0)) # from ini
-                y_pred = fwdpass[0][ind_hor] # eval loss only on horizon obs
+                y_pred = fwdpass[0][ind_hor].reshape(-1,1) # horizon obs
                 loss_va += loss_fn(y_pred, yb[b,ind_hor].reshape(-1,1)).item()
         # loss_tr = loss_tr/nb_obs # sum squared/absolute errors -> MSE/MAE
         loss_tr = loss_tr/nb_tr_loss # sum squared/absolute errors -> MSE/MAE
@@ -586,7 +587,10 @@ for s in range(len(seriesvec)): # loop over series (dim 0)
 #         yfull_s_pred = fwdpass_full[0].detach().numpy() #
 #     print('Series',seriesvec[s],'full R^2 =',round(r2_score(yfull_s, yfull_s_pred),4)) # R^2 on training set
 
+
 print('\n')
+now_again_str = now.strftime("%Y-%m-%d %H:%M:%S")
+print(now_again_str)
 print('done')
 
 # END twdlstm train

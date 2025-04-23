@@ -1,4 +1,4 @@
-# Configuration for twdlstm v0.4.4
+# Configuration for twdlstm v0.5
 
 path_data: '/mydata/forestcast/william/WP3/DataProcessed'
 path_outputdir: '/mydata/forestcast/william/WP3/LSTM_runs/outputs'
@@ -8,13 +8,44 @@ prefixoutput: '00' #
 
 tstoy: '05' # '04' for tstoy04, '05' for tstoy05
 
+# * tstoy05 series (01-20) by species (unique by site)
+#   - Picea abies (5):
+#     "05", "07", "08", "15", "19"
+#   - Fagus sylvatica (7):
+#     "01", "06", "11", "13", "17", "18", "20"
+#   - Quercus petraea (2):
+#     "02", "12"
+#   - Pinus sylvestris (3):
+#     "09", "14", "16"
+#   - Carpinus betulus (1):
+#     "03"
+#   - Corylus avellana (1):
+#     "04"
+#   - Pseudotsuga menziesii (1):
+#     "10"
+# * tstoy05 series that are homogeneous enough by species:
+#   - Picea abies (4):
+#     "05", "07", "15", "19"
+#     after removing
+#     "08"
+#   - Fagus sylvatica (5):
+#     "06", "11", "13", "18", "20"
+#     after removing:
+#     "01", "17"
+#   - Quercus petraea (2):
+#     "02", "12"
+#   - Pinus sylvestris (2):
+#     "09", "14"
+#     after removing:
+#     "16"
+
 # series: ["10", "28", "35", "36", "37", "38", "39"] # full
 # ^ Picea abies prop samp at 3 selected sites (among 4 after excl 1 series)
-# series_te: ["11", "12", "16", "17", "29", "40", "41"] # tstoy04 all picea abies
-# series_trva: ["10", "28"] # tstoy04 picea abies
-# series_te: ["11", "12", "16"] # tstoy04 picea abies
-series_trva: ["05", "07", "08"] # tstoy05 Picea abies
-series_te: ["15", "19"] # tstoy05 Picea abies
+# series_trva: ["10", "28"]
+# series_te: ["11", "12", "16", "17", "29", "40", "41"] # tstoy04 full
+# series_te: ["11", "12", "16"]
+series_trva: ["05", "07", "15"] # tstoy05 all Picea abies tr
+series_te: ["19"] # tstoy05 all Picea abies te
 # ^ trva (tr and va) used by train.py, te only used by test.py
 
 # date_t0: '2021-01-01' # assuming time points are daily
@@ -52,8 +83,9 @@ loss: 'MAE' # 'MSE', 'MAE'
 optim: 'RMSprop' # 'RMSprop', 'Adam', 'AdamW', 'RAdam'
 learning_rate: 1e-2 # 1e-2 is good, 1e-1 better if scheduling
 alphal2: 0.1 # L2 pen (weight decay) # 0.0, 0.5, 0.8
-momentum: 0.0 # momentum in RMSprop # 0.0, 0.5
+momentum: 0.8 # momentum in RMSprop # 0.0, 0.5
 
 # run from /mydata/forestcast/william/WP3:
-# python src/twdlstm/train.py LSTM_runs/configs/config_00.yaml > LSTM_runs/logs/log_00.txt
+# python src/twdlstm/train.py LSTM_runs/configs/config_00.yaml > LSTM_runs/logs/log_trva_00.txt
+# python src/twdlstm/cv.py LSTM_runs/configs/config_00.yaml > LSTM_runs/logs/log_cv_00.txt
 # python src/twdlstm/test.py LSTM_runs/configs/config_00.yaml > LSTM_runs/logs/log_te_00.txt
