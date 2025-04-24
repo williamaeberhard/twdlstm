@@ -17,8 +17,8 @@ from collections import OrderedDict # saving/loading model state_dict
 #%% read config yaml
 # os.chdir('/mydata/forestcast/william/WP3') # setwd()
 
-# path_config = str(sys.argv[1])
-path_config = '/mydata/forestcast/william/WP3/LSTM_runs/configs/config_00.yaml' # TODO
+path_config = str(sys.argv[1])
+# path_config = '/mydata/forestcast/william/WP3/LSTM_runs/configs/config_00.yaml'
 # print(path_config)
 
 with open(path_config) as cf_file:
@@ -501,6 +501,8 @@ for i in range(nb_series): # i index identifies held-out series
     # print('\n')
 
 # end for i in range(nb_series)
+
+print('\n')
 
 for i in range(nb_series): # i index identifies held-out series
     print('--- CV fold',i) # 
