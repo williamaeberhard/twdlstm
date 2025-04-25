@@ -427,8 +427,8 @@ while (epoch < maxepoch) :
         fwdpass = model(xb[b,:,:], (h0,c0)) # from ini
         # y_pred = fwdpass[0] # eval loss only on horizon obs
         y_pred = fwdpass[0][-len_reg:,:] # v0.4.2
-        y_pred = y_pred[ind_hor].reshape(-1,1) # v0.5, cleaner
         lap_reg = torch.norm(torch.matmul(lap, y_pred),1) # sum abs diff
+        y_pred = y_pred[ind_hor].reshape(-1,1) # v0.5, cleaner
         y_b_tmp = yb[b,ind_hor].reshape(-1,1)
         losstr = loss_fn(y_pred, y_b_tmp) + hp_lambda*lap_reg
         loss_tr += losstr.item()
