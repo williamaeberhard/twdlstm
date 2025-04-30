@@ -496,7 +496,7 @@ for i in range(nb_series): # i index identifies held-out series
     plt.scatter(ind_va_i, y_s[ind_va_i], s=16, c=colvec[1], label='va')
     plt.plot(ind_va_i, yva_pred, linewidth=1, color='black')
     plt.legend(loc='upper left')
-    plt.title('CV fold '+str(i)+', series ' + seriesvec[s])
+    plt.title('CV fold '+str(i)+', series ' + seriesvec[i])
     plt.savefig(path_out_cv + 'fold' + str(i) + '_ts.pdf')
     plt.close()
     
