@@ -7,7 +7,9 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 ### Version history
 
 This is twdlstm version 0.5. Change log:
-* v0.5: created cv.py. Uses same config as train.py and test.py, runs train on all sites in series_trva except one, one at a time, i.e. a LOO CV. Computes some metrics by site (same as the ones in test.py) but does not save all CV preds for now.
+* v0.5:
+  - fixed dtype in pd.read_csv for new covariates sw, dy, and el.
+  - created cv.py. Uses same config as train.py and test.py, runs train on all sites in series_trva except one, one at a time, i.e. a LOO CV. Computes some metrics by site (same as the ones in test.py) but does not save all CV preds for now.
 * v0.4.4:
   - removed MAPE from test.py metrics, useless
   - create sub-dir for trva output, plot ts full pred for all trva series now

@@ -83,7 +83,10 @@ dat_s = pd.read_csv(
         'dp':float,
         'sr':float,
         'lr':float,
-        'vp':float
+        'vp':float,
+        'sw':float,
+        'dy':float,
+        'el':float
     }
 )
 
@@ -123,7 +126,10 @@ for s in range(1,nb_series): # loop over series after 1st
             'dp':float,
             'sr':float,
             'lr':float,
-            'vp':float
+            'vp':float,
+            'sw':float,
+            'dy':float,
+            'el':float
         }
     )
     y_s_full = dat_s['twd'][ind_t]
