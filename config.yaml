@@ -1,4 +1,4 @@
-# Configuration for twdlstm v0.5
+# Configuration for twdlstm v0.5.1
 
 path_data: '/mydata/forestcast/william/WP3/DataProcessed'
 path_outputdir: '/mydata/forestcast/william/WP3/LSTM_runs/outputs'
@@ -6,7 +6,7 @@ path_checkpointdir: '/mydata/forestcast/william/WP3/LSTM_runs/checkpoints'
 
 prefixoutput: '00' #
 
-tstoy: '05' # '04' for tstoy04, '05' for tstoy05
+tstoy: '05' # '04' for tstoy04, '05' for tstoy05, etc.
 
 # * tstoy05 series (01-20) by species (unique by site)
 #   - Picea abies (5):
@@ -72,6 +72,9 @@ lambda_LaplacianReg: 0.01 # 0.0, 0.01, 0.05
 # ^ multiplies sum abs diff pred within each batch
 len_reg: 10 # min(10, batch_len/4)
 # ^ nb pred that are regularized in each batch, must be < batch_len
+
+actout: 'ReLU' # 'ReLU', 'Softplus', 'Sigmoid'
+# ^ 'ReLU' and 'Softplus' for tstoy04-tstoy06, 'Sigmoid' for tstoy07
 
 torch_seed: 123 # torch.randn
 

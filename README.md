@@ -6,7 +6,11 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 
 ### Version history
 
-This is twdlstm version 0.5. Change log:
+This is twdlstm version 0.5.1. Change log:
+* v0.5.1:
+  - created pred.py script. It predicts the TWD response on Jan's CH grid, outputs a zarr file with: dim 1 = LOO-CV folds, one fold being an "ensemble member", dim 2 = grid x coordinates, and dim 3 = grid y coordinates.
+  - all .py scripts: fixed printed time at end, now correct time difference
+  - all .py scrpts: added option for different output activation function, with "ReLU", "Softplus", and "Sigmoid" currently implemented with argument actout in config.yaml.
 * v0.5:
   - fixed dtype in pd.read_csv for new covariates sw, dy, and el.
   - created cv.py. Uses same config as train.py and test.py, runs train on all sites in series_trva except one, one at a time, i.e. a LOO CV. Computes some metrics by site (same as the ones in test.py) but does not save all CV preds for now.
