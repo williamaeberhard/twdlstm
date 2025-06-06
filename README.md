@@ -6,7 +6,10 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 
 ### Version history
 
-This is twdlstm version 0.5.1. Change log:
+This is twdlstm version 0.5.2. Change log:
+* v0.5.2:
+  - in pred.py, new config argument source allows to select between 'train' (output from train.py, single fit to all tr data) and 'cv' (output from cv.py, one fit per CV fold).
+  - in pred.py, new config argument whichckpt allows to select between 'best' (smallest va loss thought epochs) and 'last' (last epoch in optim). 'last' only available for source='train'. 'best' is the default. 
 * v0.5.1:
   - created pred.py script. It predicts the TWD response on Jan's CH grid, outputs a zarr file with: dim 1 = LOO-CV folds, one fold being an "ensemble member", dim 2 = grid x coordinates, and dim 3 = grid y coordinates.
   - all .py scripts: fixed printed time at end, now correct time difference
@@ -20,7 +23,7 @@ This is twdlstm version 0.5.1. Change log:
 * v0.4.3:
   - added optim choice in config yaml, for train.py.
   - in train.py, now loading best param over epoch (and not keeping the last one) for outputs
-* v0.4.2: changed scheme for Laplacian regularization in train.py. Now hor is hard-coded to 1 (last obs in batch contributes to loss) and len_reg in config is the number of pred at the end of every batch that are Laplacian-regularized. Also, hp_lambda is no scaled by len_reg so the penalty is the mean of absolute differences.
+* v0.4.2: changed scheme for Laplacian regularization in train.py. Now hor is hard-coded to 1 (last obs in batch contributes to loss) and len_reg in config is the number of pred at the end of every batch that are Laplacian-regularized. Also, hp_lambda is now scaled by len_reg so the penalty is the mean of absolute differences.
 * v0.4.1: added Laplacian regularizer (sum of abs diff of pred within batch) in train.py, with lambda_LaplacianReg hyperparameter supplied in config.
 * v0.4:
   - adapted train.py for series_trva (distinct now from series_te in config)

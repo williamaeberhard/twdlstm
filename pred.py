@@ -1,4 +1,4 @@
-# twdlstm pred v0.5.1
+# twdlstm pred v0.5.2
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -20,8 +20,7 @@ import zarr
 # os.chdir('/mydata/forestcast/william/WP3') # setwd()
 
 path_config = str(sys.argv[1])
-# path_config = '/mydata/forestcast/william/WP3/LSTM_preds/configs/config_17-00.yaml'
-# path_config = '/mydata/forestcast/william/WP3/LSTM_preds/configs/config_31-00.yaml'
+# path_config = '/mydata/forestcast/william/WP3/LSTM_preds/configs/config_31-04.yaml'
 # print(path_config)
 
 with open(path_config) as cf_file:
@@ -48,7 +47,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm pred v0.5.1\n')
+print(now_str + ' running twdlstm pred v0.5.2\n')
 # print('\n')
 
 print('Supplied config:')
@@ -112,10 +111,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 torch.set_default_device(device)
 
 xfull = torch.tensor(x_full, dtype=torch.float32)
-# yfull = torch.tensor(y_full, dtype=torch.float32)
 
 # xfull.shape
-# yfull.shape
 
 
 #%% LSTM model class
@@ -293,35 +290,55 @@ c0 = torch.zeros(nb_layers, h_size) # num_layers, hidden_size
 
 
 
-#%% for fold i: load best set of param among epochs (best = smallest va loss)
+#%% load best/last set of param among epochs (best = smallest va loss)
 path_ckpt = config['path_checkpointdir'] + '/' + config['prefixoutput']
 
 ind_hor = -1 # last obs
 
-ypred = np.zeros(shape=(nb_series, x_full.shape[2], x_full.shape[3]))
-
-wallclock0 = time.time()
-for i in range(nb_series): # i index identifies held-out series
-    # i = 0
-    print('--- fold',i,': held-out series =',seriesvec[i])
-    path_best_ckpt = path_ckpt+'_ckpt_best_fold'+str(i)+'.pt'
+if config['source']=='cv':
+    ypred = np.zeros(shape=(nb_series, x_full.shape[2], x_full.shape[3]))
+    
+    wallclock0 = time.time()
+    for i in range(nb_series): # i index identifies held-out series
+        # i = 0
+        print('--- fold',i,': held-out series =',seriesvec[i])
+        path_best_ckpt = path_ckpt+'_ckpt_best_fold'+str(i)+'.pt'
+        
+        model.load_state_dict(torch.load(path_best_ckpt, weights_only=False))
+        # ^ <All keys matched successfully> = ok
+        model.eval() #
+        
+        #%% for fold i: forward pass for pred, loop over x/y coords
+        for xc in range(x_full.shape[2]):
+            # xc = 0
+            for yc in range(x_full.shape[3]):
+                # yc = 0
+                fwdpass = model(xfull[:,:,xc,yc], (h0,c0))
+                ypred[i,xc,yc] = fwdpass[0][ind_hor]
+    
+    # end for loop over i index for LOO-CV folds ("ensemble members")
+    wallclock1 = time.time() # in seconds
+    print('triple for loop over folds/x/y took',round((wallclock1 - wallclock0)/60,1),'m\n')
+elif config['source']=='train':
+    ypred = np.zeros(shape=(1, x_full.shape[2], x_full.shape[3]))
+    wallclock0 = time.time()
+    if config['whichckpt']=='best':
+        path_best_ckpt = path_ckpt+'_ckpt_best.pt'
+    elif config['whichckpt']=='last':
+        path_best_ckpt = path_ckpt+'_ckpt_'+str(config['maxepoch'])+'.pt'
     
     model.load_state_dict(torch.load(path_best_ckpt, weights_only=False))
     # ^ <All keys matched successfully> = ok
     model.eval() #
-    
-    #%% for fold i: forward pass for pred, loop over x/y coords
     for xc in range(x_full.shape[2]):
         # xc = 0
         for yc in range(x_full.shape[3]):
             # yc = 0
             fwdpass = model(xfull[:,:,xc,yc], (h0,c0))
-            ypred[i,xc,yc] = fwdpass[0][ind_hor]
-
-# end for loop over i index for LOO-CV folds ("ensemble members")
-wallclock1 = time.time() # in seconds
-print('triple for loop over folds/x/y took',round((wallclock1 - wallclock0)/60,1),'m\n')
-
+            ypred[0,xc,yc] = fwdpass[0][ind_hor]
+    
+    wallclock1 = time.time() # in seconds
+    print('double for loop over x/y took',round((wallclock1 - wallclock0)/60,1),'m\n')
 
 #%% write pred array into a zarr file
 # z_ypred = zarr.array(ypred)

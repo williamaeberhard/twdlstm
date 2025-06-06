@@ -1,4 +1,4 @@
-# Configuration for twdlstm v0.5.1
+# Configuration for twdlstm v0.5.2
 
 path_data: '/mydata/forestcast/william/WP3/DataProcessed'
 path_outputdir: '/mydata/forestcast/william/WP3/LSTM_runs/outputs'
