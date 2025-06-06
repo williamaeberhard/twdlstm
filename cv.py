@@ -1,4 +1,4 @@
-# twdlstm cv v0.5.2
+# twdlstm cv v0.5.3
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -45,7 +45,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm cv v0.5.2\n')
+print(now_str + ' running twdlstm cv v0.5.3\n')
 # print('\n')
 
 print('Supplied config:')

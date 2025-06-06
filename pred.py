@@ -20,7 +20,7 @@ import zarr
 # os.chdir('/mydata/forestcast/william/WP3') # setwd()
 
 path_config = str(sys.argv[1])
-# path_config = '/mydata/forestcast/william/WP3/LSTM_preds/configs/config_31-04.yaml'
+# path_config = '/mydata/forestcast/william/WP3/LSTM_preds/configs/config_31-09.yaml'
 # print(path_config)
 
 with open(path_config) as cf_file:
@@ -65,6 +65,8 @@ z0 = zarr.load(path_covgrid+'/'+day_pred+'.zarr')
 # z0.shape # 6 cov, 320 x coords, 224 y coords
 # ^ ini with day to predict on
 
+# print(z0[:,50,150])
+
 names_cov = ['pr', 'at', 'ws', 'dp', 'sr', 'lr']
 # ^ all cov processed on grid covering CH, ordering matters
 
@@ -72,11 +74,22 @@ seriesvec = config['series_trva'] # different "ensemble member" for each CV fold
 covvec = config['covvec']
 # nT = config['nT'] # time window length, to be split in batches for tr/va
 
+nb_series = len(seriesvec)
+nb_cov = len(covvec)
+
 ind_cov = [] # ini empty
 for j in covvec:
     ind_cov.append(names_cov.index(j)) # append index of kept cov in order
 
 x_full = z0[ind_cov,:,:] # ini at actual pred day = lag 0
+
+# normalize each cov by its respective mean/sd (over grid points)
+mean_s = x_full.mean(axis=(1, 2)) # cov mean
+sd_s = x_full.std(axis=(1, 2))    # cov sd
+for j in range(nb_cov): # loop over columns, overwrite each cov
+    x_full[j,:,:] = (x_full[j,:,:]-mean_s[j])/sd_s[j]
+
+
 x_full = np.expand_dims(x_full, axis=0) # add a dim for stacking series
 # x_full.shape # keep only necessary cov. dim 0 = daily lags
 
@@ -90,19 +103,28 @@ for t in range(1,b_len+1): # lag 1:b_len
     # t = 1
     day_t = day_0 - t*oneday # lag one day for each t
     dayt = day_t.strftime('%Y%m%d') # 'YYYYMMDD' format
-    
     zt = zarr.load(path_covgrid+'/'+dayt+'.zarr')
-    zt = np.expand_dims(zt[ind_cov,:,:], axis=0) # add a dim for stacking series
-    # zt.shape # 6 cov, 320 x coords, 224 y coords
-    
+    zt = zt[ind_cov,:,:]
+    # normalize each cov by its respective mean/sd (over grid points) 
+    mean_s = zt.mean(axis=(1, 2)) # cov mean
+    sd_s = zt.std(axis=(1, 2))    # cov sd
+    for j in range(nb_cov): # loop over columns, overwrite each cov
+        zt[j,:,:] = (zt[j,:,:]-mean_s[j])/sd_s[j]
+
+    zt = np.expand_dims(zt, axis=0) # add a dim for stacking series
     x_full = np.concatenate((x_full,zt), axis=0)
 
 # x_full.shape # daily lags stacked in dim 0, keep only necessary cov in dim 1
 
 
+
+
+
+
+
+
 #%% torch tensor (check CPU or GPU)
-nb_series = len(seriesvec)
-nb_cov = len(covvec)
+
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

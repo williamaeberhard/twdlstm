@@ -6,7 +6,8 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 
 ### Version history
 
-This is twdlstm version 0.5.2. Change log:
+This is twdlstm version 0.5.3. Change log:
+* v0.5.3: in pred.py, fixed covariate normalization (using mean and sd over grid from same day)
 * v0.5.2:
   - in pred.py, new config argument source allows to select between 'train' (output from train.py, single fit to all tr data) and 'cv' (output from cv.py, one fit per CV fold).
   - in pred.py, new config argument whichckpt allows to select between 'best' (smallest va loss thought epochs) and 'last' (last epoch in optim). 'last' only available for source='train'. 'best' is the default. 
