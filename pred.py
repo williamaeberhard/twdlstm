@@ -1,6 +1,6 @@
-# twdlstm pred v0.5.2
+# twdlstm pred v0.5.3
 
-import sys # CLI argumennts: print(sys.argv)
+import sys # CLI arguments: print(sys.argv)
 import os # os.getcwd, os.chdir
 from datetime import datetime # datetime.now # datetime class
 import datetime as dtm # dtm module
@@ -47,7 +47,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm pred v0.5.2\n')
+print(now_str + ' running twdlstm pred v0.5.3\n')
 # print('\n')
 
 print('Supplied config:')
@@ -67,7 +67,8 @@ z0 = zarr.load(path_covgrid+'/'+day_pred+'.zarr')
 
 # print(z0[:,50,150])
 
-names_cov = ['pr', 'at', 'ws', 'dp', 'sr', 'lr']
+# names_cov = ['pr', 'at', 'ws', 'dp', 'sr', 'lr']
+names_cov = ['pr', 'at', 'ws', 'dp', 'sr', 'lr', 'vp', 'sw'] # updated 2025-06-19
 # ^ all cov processed on grid covering CH, ordering matters
 
 seriesvec = config['series_trva'] # different "ensemble member" for each CV fold
@@ -281,8 +282,8 @@ model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
 
 
 #%% initial values
-h0 = torch.zeros(nb_layers, h_size) # num_layers, hidden_size
-c0 = torch.zeros(nb_layers, h_size) # num_layers, hidden_size
+h0 = torch.zeros(nb_layers, h_size, device=device) # num_layers, hidden_size
+c0 = torch.zeros(nb_layers, h_size, device=device) # num_layers, hidden_size
 
 # # torch.manual_seed(config['seed'])
 # tgen = torch.Generator(device=device).manual_seed(config['torch_seed'])
