@@ -1,4 +1,4 @@
-# twdlstm train v0.5.3
+# twdlstm train v0.6
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -17,6 +17,7 @@ from collections import OrderedDict # saving/loading model state_dict
 #%% read config yaml
 # os.chdir('/mydata/forestcast/william/WP3') # setwd()
 
+# path_config = '/mydata/forestcast/william/WP3/LSTM_runs/configs/config_36.yaml'
 path_config = str(sys.argv[1])
 # print(path_config)
 
@@ -44,7 +45,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm train v0.5.3\n')
+print(now_str + ' running twdlstm train v0.6\n')
 # print('\n')
 
 print('Supplied config:')
@@ -200,6 +201,7 @@ nb_batches = int(nb_series*b_nb)
 
 xb = torch.empty(size=(nb_batches, b_len, nb_cov))
 yb = torch.empty(size=(nb_batches, b_len))
+whichseries = np.empty(nb_batches)
 for s in range(nb_series): # loop over series (dim 0)
     x_s = torch.select(xfull, dim=0, index=s)
     y_s = torch.select(yfull, dim=0, index=s) # .reshape(-1,1)
@@ -207,6 +209,7 @@ for s in range(nb_series): # loop over series (dim 0)
         ind_t = range(t, int(b_len+t)) # overlapping temporal subsets
         xb[t+s*b_nb,:,:] = x_s[ind_t,:]
         yb[t+s*b_nb,:] = y_s[ind_t]
+        whichseries[t+s*b_nb] = s
 
 # xb.shape # batches = dim 0
 # yb.shape # batches = dim 0
@@ -216,6 +219,15 @@ for s in range(nb_series): # loop over series (dim 0)
 # ind_hor = range(int(b_len-hor),b_len)
 ind_hor = -1 # v0.4.2: only last obs
 # ^ indices of obs contributing to loss eval within each batch
+
+
+#%% deal with nan in response (necessary for tstoy08)
+ind_nonan = ~torch.any(yb.isnan(),dim=1) # boolean, T if not nan
+whichseries = whichseries[ind_nonan.cpu()] # for plotting for each series
+xb = xb[ind_nonan,:,:] # overwrite
+yb = yb[ind_nonan,:] # overwrite
+
+nb_batches = xb.shape[0] # overwrite
 
 
 
@@ -421,7 +433,7 @@ model.load_state_dict(state_dict_inirand, strict=False)
 nb_param = 4*h_size*i_size + 4*h_size*h_size + 4*h_size*2 + o_size*(h_size+1)
 nb_obs = len(seriesvec)*nT # 
 print('Number of parameters =',nb_param)
-print('Total number of observations =',nb_obs)
+print('Total (potential) number of observations =',nb_obs)
 print('Number of training loss contributions =',nb_tr_loss)
 print('Number of validation loss contributions =',nb_va_loss,'\n')
 # print('\n')
@@ -628,6 +640,23 @@ else: # then device.type='cpu'
 print('va R^2 =',round(r2_score(yva, yva_pred),4)) # R^2 on validation batches
 
 
+# ind_01_tr = [] # [0] # ini
+# for b in range(nb_tr): # loop over tr batches (s and t)
+#     ind_tr_b = ind_tr[b]
+#     if ind_tr_b < b_nb: # then batch in 1st series
+#         ind_01_tr.append(ind_tr_b + b_len - 1) # index of obs contributing to loss
+# 
+# # ind_01_tr = ind_01_tr[1:] # excl ini 0
+
+# ind_01_va = [] # [0] # ini
+# for b in range(nb_va): # loop over tr batches (s and t)
+#     ind_va_b = ind_va[b]
+#     if ind_va_b < b_nb: # then batch in 1st series
+#         ind_01_va.append(ind_va_b + b_len -1 ) # index of obs contributing to loss
+# 
+# # ind_01_va = ind_01_va[1:] # excl ini 0
+
+count_trva = 0
 # s = 0 # 1st series as ref, plot only this one
 for s in range(len(seriesvec)): # loop over series (dim 0)
     xfull_s = torch.select(xfull, dim=0, index=s)
@@ -640,31 +669,26 @@ for s in range(len(seriesvec)): # loop over series (dim 0)
         yfull_s = torch.select(yfull, dim=0, index=s).reshape(-1,1).detach().numpy()
         yfull_s_pred = fwdpass_full[0].detach().numpy() #
     
-    print('Series',seriesvec[s],'full R^2 =',round(r2_score(yfull_s, yfull_s_pred),4)) # R^2 on training set
+    ind_notnan_s = ~np.isnan(yfull_s)
+    # yfull_s = yfull_s[ind_notnan_s] # remove nan
+    # yfull_s_pred = yfull_s_pred[ind_notnan_s] # remove nan
+    print('Series',seriesvec[s],'full R^2 =',
+        round(r2_score(yfull_s[ind_notnan_s], yfull_s_pred[ind_notnan_s]),4)) # R^2 on training set
     # yva_pred = model(xva_s, fwdpass_tr[1])[0].detach().numpy() #
     # print('Series',seriesvec[s],'tr R^2 =',round(r2_score(ytr_s, ytr_pred),4)) # R^2 on training set
     # print('Series',seriesvec[s],'va R^2 =',round(r2_score(yva_s, yva_pred),4)) # R^2 on validation set
     
-    ind_01_tr = [0] # ini
-    for b in range(nb_tr): # loop over tr batches (s and t)
-        ind_tr_b = ind_tr[b]
-        if ind_tr_b < b_nb: # then batch in 1st series
-            ind_01_tr.append(ind_tr_b + b_len - 1) # index of obs contributing to loss
-    
-    ind_01_tr = ind_01_tr[1:] # excl ini 0
-    
-    ind_01_va = [0] # ini
-    for b in range(nb_va): # loop over tr batches (s and t)
-        ind_va_b = ind_va[b]
-        if ind_va_b < b_nb: # then batch in 1st series
-            ind_01_va.append(ind_va_b + b_len -1 ) # index of obs contributing to loss
-    
-    ind_01_va = ind_01_va[1:] # excl ini 0
+    # ind_tr_s = (ind_tr[whichseries[ind_tr]==s] + b_len - 1)-s*nT # np.where
+    # ind_va_s = (ind_va[whichseries[ind_va]==s] + b_len - 1)-s*nT # np.where
+    nb_nan_burnin = sum(np.isnan(yfull_s[:b_len]))[0]
+    ind_tr_s = ind_tr[whichseries[ind_tr]==s] + b_len - 1 - count_trva + nb_nan_burnin # s*(nT-b_len + 1)
+    ind_va_s = ind_va[whichseries[ind_va]==s] + b_len - 1 - count_trva + nb_nan_burnin # s*(nT-b_len + 1)
+    count_trva = count_trva + len(ind_tr_s)+len(ind_va_s)
     
     plt.figure(figsize=(12,6))
     plt.scatter(range(nT), yfull_s, s=10, c='grey', label='ini') # s=16
-    plt.scatter(ind_01_tr, yfull_s[ind_01_tr], s=16, c=colvec[0], label='tr')
-    plt.scatter(ind_01_va, yfull_s[ind_01_va], s=16, c=colvec[1], label='va')
+    plt.scatter(ind_tr_s, yfull_s[ind_tr_s], s=16, c=colvec[0], label='tr')
+    plt.scatter(ind_va_s, yfull_s[ind_va_s], s=16, c=colvec[1], label='va')
     plt.plot(range(nT), yfull_s_pred, linewidth=1, color='black')
     plt.legend(loc='upper left')
     plt.title('series ' + seriesvec[s])

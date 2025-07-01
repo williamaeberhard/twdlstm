@@ -1,4 +1,4 @@
-# twdlstm cv v0.5.3
+# twdlstm cv v0.6
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -17,8 +17,8 @@ from collections import OrderedDict # saving/loading model state_dict
 #%% read config yaml
 # os.chdir('/mydata/forestcast/william/WP3') # setwd()
 
+# path_config = '/mydata/forestcast/william/WP3/LSTM_runs/configs/config_36.yaml'
 path_config = str(sys.argv[1])
-# path_config = '/mydata/forestcast/william/WP3/LSTM_runs/configs/config_27.yaml'
 # print(path_config)
 
 with open(path_config) as cf_file:
@@ -45,7 +45,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm cv v0.5.3\n')
+print(now_str + ' running twdlstm cv v0.6\n')
 # print('\n')
 
 print('Supplied config:')
@@ -142,6 +142,23 @@ for s in range(1,nb_series): # loop over series after 1st
 
 # x_full.shape
 # y_full.shape
+
+
+#%% check if some series are fully nan, stop CV script if yes
+stopscript = False
+serivesfullnan = [] # ini empty
+for i in range(nb_series):
+    if np.all(np.isnan(y_full[i,:])):
+        stopscript = True
+        # serivesfullnan.append(i)
+        serivesfullnan.append(seriesvec[i])
+
+# serivesfullnan
+
+if stopscript:
+    print('Series',serivesfullnan,'full of nan, stoppping.')
+    quit()
+
 
 
 #%% torch tensor (check CPU or GPU)
@@ -296,7 +313,7 @@ elif config['actout']=='Sigmoid':
             )
             return hidden
 
-model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
+# model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
 # model.train() # print(model)
 
 
@@ -370,24 +387,24 @@ b_len = int(config['batch_len'])
 b_nb = int(nT - b_len + 1) # int(nT_tr - b_len + 1)
 # ^ b_nb = number of temporal batches per series, each of length b_len
 
-nb_batches = int((nb_series-1)*b_nb)
+# nb_batches = int((nb_series-1)*b_nb)
 # ^ nb of CV tr batches, with 1 series left for each fold
 
 nb_param = 4*h_size*i_size + 4*h_size*h_size + 4*h_size*2 + o_size*(h_size+1)
 nb_obs = nb_series*nT # 
 
-ind_tr = range(nb_batches) # index tr batches in xb/yb
-ind_va = range(b_nb) # index tr batches in xb_i/yb_i
+# ind_tr = range(nb_batches) # index tr batches in xb/yb
+# ind_va = range(b_nb) # index tr batches in xb_i/yb_i
 
-ind_va_i = list(range(b_len-1,nT)) # index for time points after burn-in
+# ind_va_i = list(range(b_len-1,nT)) # index for time points after burn-in
 
-nb_tr_loss = nb_batches
-nb_va_loss = b_nb
+# nb_tr_loss = nb_batches
+# nb_va_loss = b_nb
 
 print('Number of parameters =',nb_param)
-print('Total number of observations in trva =',nb_obs)
-print('Number of CV tr loss contributions =',nb_batches)
-print('Number of CV va loss contributions =',nb_va_loss,'\n')
+print('Total (potential) number of observations in trva =',nb_obs,'\n')
+# print('Number of CV tr loss contributions =',nb_batches)
+# print('Number of CV va loss contributions =',nb_va_loss,'\n')
 # print('\n')
 
 
@@ -444,6 +461,7 @@ for i in range(nb_series): # i index identifies held-out series
             weight_decay=alphal2
         )
     
+    nb_batches = int((nb_series-1)*b_nb) # reset for every fold
     xb = torch.empty(size=(nb_batches, b_len, nb_cov))
     yb = torch.empty(size=(nb_batches, b_len))
     for s in range(len(range_series)): # loop over series in CV tr (dim 0)
@@ -463,10 +481,34 @@ for i in range(nb_series): # i index identifies held-out series
         xb_i[t,:,:] = x_s[ind_t,:]
         yb_i[t,:] = y_s[ind_t]
     
-    # xb.shape # tr batches = dim 0
-    # yb.shape # tr batches = dim 0
+    # xb.shape # CV tr batches
+    # yb.shape # CV tr batches
     # xb_i.shape # CV held-out batches
     # yb_i.shape # CV held-out batches
+    
+    # deal with nan in response (necessary for tstoy08)
+    # ind_nonan = ~torch.any(yb.isnan(),dim=1) # bad: excl if any nan
+    ind_nonan = ~yb[:,ind_hor].isnan() # good: excl if last is nan
+    xb = xb[ind_nonan,:,:] # overwrite
+    yb = yb[ind_nonan,:] # overwrite
+    nb_batches = xb.shape[0] # overwrite
+    
+    # ind_nonan = ~torch.any(yb_i.isnan(),dim=1) # bad: excl if any nan
+    ind_nonan = ~yb_i[:,ind_hor].isnan() # good: excl if last is nan
+    xb_i_full = xb_i # keep for full time series pred and plots
+    xb_i = xb_i[ind_nonan,:,:] # overwrite
+    yb_i = yb_i[ind_nonan,:] # overwrite
+    nb_batches_i = xb_i.shape[0]
+    # xb_i.shape # use to eval va loss
+    # xb_i_full.shape # use for full time series pred, plots
+    
+    print('Number of tr loss contributions =',nb_batches)
+    print('Number of va loss contributions =',nb_batches_i)
+    
+    ind_tr_i = range(nb_batches) # index tr batches in xb/yb
+    ind_va_i = range(nb_batches_i) # index va batches in xb_i/yb_i
+    # ind_va_i = range(b_nb) # index tr batches in xb_i/yb_i
+    
     
     # optim
     model.train()
@@ -480,9 +522,9 @@ for i in range(nb_series): # i index identifies held-out series
     while (epoch < maxepoch) :
         optimizer.zero_grad()
         loss_tr = 0.0 # just to display
-        loss_va = 0.0 # record va loss 
+        loss_va = 0.0 # record va loss
         
-        for b in ind_tr: # loop over CV tr batches
+        for b in ind_tr_i: # loop over CV tr batches
             fwdpass = model(xb[b,:,:], (h0,c0)) # from ini
             y_pred = fwdpass[0][-len_reg:,:] # v0.4.2
             lap_reg = torch.norm(torch.matmul(lap, y_pred),1) # sum abs diff
@@ -491,18 +533,18 @@ for i in range(nb_series): # i index identifies held-out series
             losstr = loss_fn(y_pred, y_b_tmp) + hp_lambda*lap_reg
             loss_tr += losstr.item()
             losstr.backward() # accumulate grad over batches
-        
-        optimizer.step() # over all series and all subsets
+            
+            optimizer.step() # over all series and all subsets
         
         if epoch%(maxepoch/step_ckpt)==(maxepoch/step_ckpt-1):
             with torch.no_grad():
-                for b in ind_va: # loop over va batches (s and t)
+                for b in ind_va_i: # loop over va batches (s and t)
                     fwdpass = model(xb_i[b,:,:], (h0,c0)) # from ini
                     y_pred = fwdpass[0][ind_hor].reshape(-1,1) # horizon obs
                     loss_va += loss_fn(y_pred, yb_i[b,ind_hor].reshape(-1,1)).item()
             
-            loss_tr = loss_tr/nb_tr_loss # sum squared/absolute errors -> MSE/MAE
-            loss_va = loss_va/nb_va_loss # sum squared/absolute errors -> MSE/MAE
+            loss_tr = loss_tr/nb_batches # sum squared/absolute errors -> MSE/MAE
+            loss_va = loss_va/nb_batches_i # sum squared/absolute errors -> MSE/MAE
             # save checkpoint for best intermediate fit
             if not lossvec_va: # check if empty
                 torch.save(model.state_dict(), path_best_ckpt)
@@ -525,13 +567,13 @@ for i in range(nb_series): # i index identifies held-out series
     
     # # save estimated parameters (checkpoint) at max epoch
     # torch.save(model.state_dict(), path_ckpt + '_ckpt_' + str(epoch) + '.pt')
-
+    
     # outputs from training and validation
     # load best set of param among epochs (best = smallest va loss)
     model.load_state_dict(torch.load(path_best_ckpt, weights_only=False))
     # ^ <All keys matched successfully> = ok
     model.eval()
-
+    
     plt.figure(figsize=(12,6))
     plt.plot(epochvec, np.array(lossvec_tr), c=colvec[0], label='tr loss')
     # plt.scatter(range(maxepoch), np.array(lossvec_tr)/nT_tr, s=16,c=colvec[0])
@@ -547,36 +589,36 @@ for i in range(nb_series): # i index identifies held-out series
     ytr = np.zeros(nb_batches)
     ytr_pred = np.zeros(nb_batches)
     if device.type=='cuda': # need to transfer from GPU to CPU for np
-        for b in ind_tr: # loop over tr batches (s and t)
+        for b in ind_tr_i: # loop over tr batches (s and t)
             fwdpass_b = model(xb[b,:,:], (h0,c0)) # from ini
             ytr_pred[b] = fwdpass_b[0][ind_hor].cpu().detach().numpy().item()
             ytr[b] = yb[b,ind_hor].reshape(-1,1).cpu().detach().numpy().item()
     else: # then device.type='cpu'
-        for b in ind_tr: # loop over tr batches (s and t)
+        for b in ind_tr_i: # loop over tr batches (s and t)
             fwdpass_b = model(xb[b,:,:], (h0,c0)) # from ini
             ytr_pred[b] = fwdpass_b[0][ind_hor].detach().numpy().item()
             ytr[b] = yb[b,ind_hor].reshape(-1,1).detach().numpy().item()
-
+    
     # print('tr R^2 =',round(r2_score(ytr, ytr_pred),4)) # R^2 on training batches
     bias_tr[i] = np.mean(ytr) - np.mean(ytr_pred)
     scale_tr[i] = np.std(ytr)/np.std(ytr_pred)
     r_tr[i] = np.corrcoef(ytr, ytr_pred)[0,1]
     r2_tr[i] = r2_score(ytr, ytr_pred)
     MedAE_tr[i] = median_absolute_error(ytr, ytr_pred)
-        
-    yva = np.zeros(b_nb)
-    yva_pred = np.zeros(b_nb)
+    
+    yva = np.zeros(nb_batches_i) # b_nb
+    yva_pred = np.zeros(nb_batches_i) # b_nb
     if device.type=='cuda': # need to transfer from GPU to CPU for np
-        for b in ind_va: # loop over tr batches (s and t)
+        for b in ind_va_i: # loop over tr batches (s and t)
             fwdpass_b = model(xb_i[b,:,:], (h0,c0)) # from ini
             yva_pred[b] = fwdpass_b[0][ind_hor].cpu().detach().numpy().item()
             yva[b] = yb_i[b,ind_hor].reshape(-1,1).cpu().detach().numpy().item()
     else: # then device.type='cpu'
-        for b in ind_va: # loop over tr batches (s and t)
+        for b in ind_va_i: # loop over tr batches (s and t)
             fwdpass_b = model(xb_i[b,:,:], (h0,c0)) # from ini
             yva_pred[b] = fwdpass_b[0][ind_hor].detach().numpy().item()
             yva[b] = yb_i[b,ind_hor].reshape(-1,1).detach().numpy().item()
-
+    
     # print('va R^2 =',round(r2_score(yva, yva_pred),4)) # R^2 on validation batches
     bias_va[i] = np.mean(yva) - np.mean(yva_pred)
     scale_va[i] = np.std(yva)/np.std(yva_pred)
@@ -589,10 +631,26 @@ for i in range(nb_series): # i index identifies held-out series
     else: # then device.type='cpu'
         y_s = y_s.detach().numpy()
     
+    # full held-out time series pred
+    yva_predfull = np.zeros(b_nb) # 
+    if device.type=='cuda': # need to transfer from GPU to CPU for np
+        for b in range(b_nb): # loop over tr batches (s and t)
+            fwdpass_b = model(xb_i_full[b,:,:], (h0,c0)) # from ini
+            yva_predfull[b] = fwdpass_b[0][ind_hor].cpu().detach().numpy().item()
+    else: # then device.type='cpu'
+        for b in range(b_nb): # loop over tr batches (s and t)
+            fwdpass_b = model(xb_i_full[b,:,:], (h0,c0)) # from ini
+            yva_predfull[b] = fwdpass_b[0][ind_hor].detach().numpy().item()
+    
+    ind_va_i_burnin = list(range(b_len-1,nT)) # all time points after burn-in
+    # np.ndarray.tolist(~np.isnan(y_s))
+    # np.where(~np.isnan(y_s))
+    # range(nT)[np.ndarray.tolist(~np.isnan(y_s))]
+    
     plt.figure(figsize=(12,6))
     plt.scatter(range(nT), y_s, s=10, c='grey', label='ini') # s=16
-    plt.scatter(ind_va_i, y_s[ind_va_i], s=16, c=colvec[1], label='va')
-    plt.plot(ind_va_i, yva_pred, linewidth=1, color='black')
+    plt.scatter(ind_va_i_burnin, y_s[ind_va_i_burnin], s=16, c=colvec[1], label='va')
+    plt.plot(ind_va_i_burnin, yva_predfull, linewidth=1, color='black',label='pred')
     plt.legend(loc='upper left')
     plt.title('CV fold '+str(i)+', series ' + seriesvec[i])
     plt.savefig(path_out_cv + 'fold' + str(i) + '_ts.pdf')
