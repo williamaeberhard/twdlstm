@@ -6,9 +6,11 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 
 ### Version history
 
-This is twdlstm version 0.6. Change log:
+This is twdlstm version 0.6.1. Change log:
+* v0.6.1: in train.py and cv.py, added learning rate scheduler. Hard-coded to shrink lr three times by a factor of 0.1. So setting learning_rate to 1e-1 in config is prefereable.
 * v0.6:
-  - train.py and cv.py adapted to work with incompete time series (arbitrary nan like in tstoy08). In train.py simplified the series plots, only showing the full time series with fitted values computed in a single forward pass. pred.py and test.py left as of v0.5.3 for now.
+  - in train.py, simplified the series plots, only showing the full time series with fitted values computed in a single forward pass.
+  - train.py and cv.py adapted to work with incompete time series (arbitrary nan like in tstoy08). pred.py and test.py left as of v0.5.3 for now.
 * v0.5.3: in pred.py, fixed covariate normalization (using mean and sd over grid from same day) and added 'vp' and 'sw' covariates names.
 * v0.5.2:
   - in pred.py, new config argument source allows to select between 'train' (output from train.py, single fit to all tr data) and 'cv' (output from cv.py, one fit per CV fold).

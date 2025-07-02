@@ -1,4 +1,4 @@
-# twdlstm train v0.6
+# twdlstm train v0.6.1
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -45,7 +45,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm train v0.6\n')
+print(now_str + ' running twdlstm train v0.6.1\n')
 # print('\n')
 
 print('Supplied config:')
@@ -482,19 +482,15 @@ elif optim=='RAdam':
 
 maxepoch = int(config['maxepoch'])
 
-# scheduler = torch.optim.lr_scheduler.StepLR(
-#     optimizer=optimizer,
-#     # step_size=int(maxepoch/10), # reduce lr every 1/10 of maxepoch
-#     # gamma=0.9 # multiplicative factor reducing lr
-#     step_size=int(maxepoch/2), # reduce lr once halfway
-#     gamma=0.1 # multiplicative factor reducing lr
-#     # step_size=int(maxepoch/4), #
-#     # gamma=0.5 # multiplicative factor reducing lr
-#     # step_size=int(maxepoch/4), # 
-#     # gamma=0.1 # multiplicative factor reducing lr
-# )
-# TODO: add scheduler
-
+scheduler = torch.optim.lr_scheduler.StepLR(
+    optimizer=optimizer,
+    # step_size=int(maxepoch/10), # reduce lr every 1/10 of maxepoch
+    # gamma=0.9 # multiplicative factor reducing lr
+    # step_size=int(maxepoch/2), # reduce lr once halfway
+    # gamma=0.01 # multiplicative factor reducing lr
+    step_size=int(maxepoch/3), # shrink lr three times
+    gamma=0.1 # multiplicative factor reducing lr
+)
 
 #%% construct Laplacian regularization matrix
 len_reg = config['len_reg']
@@ -543,9 +539,6 @@ while (epoch < maxepoch) :
         loss_tr += losstr.item()
         losstr.backward() # accumulate grad over batches
     
-    optimizer.step() # over all series and all subsets
-    # scheduler.step() # update lr throughout epochs
-    
     if epoch%(maxepoch/step_ckpt)==(maxepoch/step_ckpt-1):
         with torch.no_grad():
             for b in ind_va: # loop over va batches (s and t)
@@ -567,6 +560,9 @@ while (epoch < maxepoch) :
         lossvec_tr.append(loss_tr)
         lossvec_va.append(loss_va)
         epochvec.append(epoch)
+    
+    optimizer.step() # over all series and all subsets
+    scheduler.step() # update lr throughout epochs
     
     epoch += 1
     # end while
@@ -686,10 +682,10 @@ for s in range(len(seriesvec)): # loop over series (dim 0)
     # count_trva = count_trva + len(ind_tr_s) + len(ind_va_s)
     
     plt.figure(figsize=(12,6))
-    plt.scatter(range(nT), yfull_s, s=10, c='grey', label='obs') # s=16 # label='ini'
+    plt.scatter(range(nT), yfull_s, s=10, c=colvec[0], label='obs') # s=16 # label='ini', c='grey'
     # plt.scatter(ind_tr_s, yfull_s[ind_tr_s], s=16, c=colvec[0], label='tr')
     # plt.scatter(ind_va_s, yfull_s[ind_va_s], s=16, c=colvec[1], label='va')
-    plt.plot(range(nT), yfull_s_pred, linewidth=1, color='black', label='pred')
+    plt.plot(range(nT), yfull_s_pred, linewidth=1, color='black', label='fitted')
     plt.legend(loc='upper left')
     plt.title('series ' + seriesvec[s])
     plt.savefig(path_out_trva + 'ts_series' + seriesvec[s] + '.pdf')

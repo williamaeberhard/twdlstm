@@ -1,4 +1,4 @@
-# twdlstm cv v0.6
+# twdlstm cv v0.6.1
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -17,7 +17,7 @@ from collections import OrderedDict # saving/loading model state_dict
 #%% read config yaml
 # os.chdir('/mydata/forestcast/william/WP3') # setwd()
 
-# path_config = '/mydata/forestcast/william/WP3/LSTM_runs/configs/config_36.yaml'
+# path_config = '/mydata/forestcast/william/WP3/LSTM_runs/configs/config_00.yaml'
 path_config = str(sys.argv[1])
 # print(path_config)
 
@@ -45,7 +45,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm cv v0.6\n')
+print(now_str + ' running twdlstm cv v0.6.1\n')
 # print('\n')
 
 print('Supplied config:')
@@ -410,6 +410,8 @@ print('Total (potential) number of observations in trva =',nb_obs,'\n')
 
 
 
+
+
 #%% CV iterations over i index
 bias_tr = np.zeros(nb_series)
 scale_tr = np.zeros(nb_series)
@@ -460,6 +462,16 @@ for i in range(nb_series): # i index identifies held-out series
             lr=learning_rate,
             weight_decay=alphal2
         )
+    
+    scheduler = torch.optim.lr_scheduler.StepLR(
+        optimizer=optimizer,
+        # step_size=int(maxepoch/10), # reduce lr every 1/10 of maxepoch
+        # gamma=0.9 # multiplicative factor reducing lr
+        # step_size=int(maxepoch/2), # reduce lr once halfway
+        # gamma=0.01 # multiplicative factor reducing lr
+        step_size=int(maxepoch/3), # shrink lr three times
+        gamma=0.1 # multiplicative factor reducing lr
+    )
     
     nb_batches = int((nb_series-1)*b_nb) # reset for every fold
     xb = torch.empty(size=(nb_batches, b_len, nb_cov))
@@ -534,8 +546,6 @@ for i in range(nb_series): # i index identifies held-out series
             loss_tr += losstr.item()
             losstr.backward() # accumulate grad over batches
         
-        optimizer.step() # over all series and all subsets
-        
         if epoch%(maxepoch/step_ckpt)==(maxepoch/step_ckpt-1):
             with torch.no_grad():
                 for b in ind_va_i: # loop over va batches (s and t)
@@ -557,6 +567,9 @@ for i in range(nb_series): # i index identifies held-out series
             lossvec_tr.append(loss_tr)
             lossvec_va.append(loss_va)
             epochvec.append(epoch)
+        
+        optimizer.step() # over all series and all subsets
+        scheduler.step() # update lr throughout epochs
         
         epoch += 1
         # end while
@@ -679,10 +692,10 @@ for i in range(nb_series): # i index identifies held-out series
     print('  - MedAE =',round(MedAE_va[i],4)) # R^2 on te batches, by series
 
 print('')
-print('Median of tr R^2 over CV folds =',round(np.median(r2_tr),4))
-print('Median of te R^2 over CV folds =',round(np.median(r2_va),4))
-print('Average of tr R^2 over CV folds =',round(np.mean(r2_tr),4))
-print('Average of te R^2 over CV folds =',round(np.mean(r2_va),4))
+print('Med tr R^2 over CV folds =',round(np.median(r2_tr),4))
+print('Med te R^2 over CV folds =',round(np.median(r2_va),4))
+print('Ave tr R^2 over CV folds =',round(np.mean(r2_tr),4))
+print('Ave te R^2 over CV folds =',round(np.mean(r2_va),4))
 
 print('\n')
 nowagain = datetime.now(tz=ZoneInfo("Europe/Zurich"))
