@@ -17,7 +17,7 @@ from collections import OrderedDict # saving/loading model state_dict
 #%% read config yaml
 # os.chdir('/mydata/forestcast/william/WP3') # setwd()
 
-# path_config = '/mydata/forestcast/william/WP3/LSTM_runs/configs/config_36.yaml'
+# path_config = '/mydata/forestcast/william/WP3/LSTM_runs/configs/config_00.yaml'
 path_config = str(sys.argv[1])
 # print(path_config)
 
@@ -680,19 +680,18 @@ for s in range(len(seriesvec)): # loop over series (dim 0)
     
     # ind_tr_s = (ind_tr[whichseries[ind_tr]==s] + b_len - 1)-s*nT # np.where
     # ind_va_s = (ind_va[whichseries[ind_va]==s] + b_len - 1)-s*nT # np.where
-    nb_nan_burnin = sum(np.isnan(yfull_s[:b_len]))[0]
-    ind_tr_s = ind_tr[whichseries[ind_tr]==s] + b_len - 1 - count_trva + nb_nan_burnin # s*(nT-b_len + 1)
-    ind_va_s = ind_va[whichseries[ind_va]==s] + b_len - 1 - count_trva + nb_nan_burnin # s*(nT-b_len + 1)
-    count_trva = count_trva + len(ind_tr_s)+len(ind_va_s)
+    # nb_nan_burnin = sum(np.isnan(yfull_s[:b_len]))[0]
+    # ind_tr_s = ind_tr[whichseries[ind_tr]==s] + b_len - 1 - count_trva + nb_nan_burnin # s*(nT-b_len + 1)
+    # ind_va_s = ind_va[whichseries[ind_va]==s] + b_len - 1 - count_trva + nb_nan_burnin # s*(nT-b_len + 1)
+    # count_trva = count_trva + len(ind_tr_s) + len(ind_va_s)
     
     plt.figure(figsize=(12,6))
-    plt.scatter(range(nT), yfull_s, s=10, c='grey', label='ini') # s=16
-    plt.scatter(ind_tr_s, yfull_s[ind_tr_s], s=16, c=colvec[0], label='tr')
-    plt.scatter(ind_va_s, yfull_s[ind_va_s], s=16, c=colvec[1], label='va')
-    plt.plot(range(nT), yfull_s_pred, linewidth=1, color='black')
+    plt.scatter(range(nT), yfull_s, s=10, c='grey', label='obs') # s=16 # label='ini'
+    # plt.scatter(ind_tr_s, yfull_s[ind_tr_s], s=16, c=colvec[0], label='tr')
+    # plt.scatter(ind_va_s, yfull_s[ind_va_s], s=16, c=colvec[1], label='va')
+    plt.plot(range(nT), yfull_s_pred, linewidth=1, color='black', label='pred')
     plt.legend(loc='upper left')
     plt.title('series ' + seriesvec[s])
-    # plt.savefig(path_out + '_pred_series' + seriesvec[s] + '.pdf')
     plt.savefig(path_out_trva + 'ts_series' + seriesvec[s] + '.pdf')
     plt.close()
 

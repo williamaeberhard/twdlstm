@@ -533,8 +533,8 @@ for i in range(nb_series): # i index identifies held-out series
             losstr = loss_fn(y_pred, y_b_tmp) + hp_lambda*lap_reg
             loss_tr += losstr.item()
             losstr.backward() # accumulate grad over batches
-            
-            optimizer.step() # over all series and all subsets
+        
+        optimizer.step() # over all series and all subsets
         
         if epoch%(maxepoch/step_ckpt)==(maxepoch/step_ckpt-1):
             with torch.no_grad():
@@ -648,8 +648,9 @@ for i in range(nb_series): # i index identifies held-out series
     # range(nT)[np.ndarray.tolist(~np.isnan(y_s))]
     
     plt.figure(figsize=(12,6))
-    plt.scatter(range(nT), y_s, s=10, c='grey', label='ini') # s=16
-    plt.scatter(ind_va_i_burnin, y_s[ind_va_i_burnin], s=16, c=colvec[1], label='va')
+    # plt.scatter(range(nT), y_s, s=10, c='grey', label='ini') # s=16
+    # plt.scatter(ind_va_i_burnin, y_s[ind_va_i_burnin], s=16, c=colvec[1], label='va')
+    plt.scatter(range(nT), y_s, s=16, c=colvec[1], label='va')
     plt.plot(ind_va_i_burnin, yva_predfull, linewidth=1, color='black',label='pred')
     plt.legend(loc='upper left')
     plt.title('CV fold '+str(i)+', series ' + seriesvec[i])
@@ -677,6 +678,11 @@ for i in range(nb_series): # i index identifies held-out series
     print('  - R^2 =',round(r2_va[i],4)) # R^2 on te batches, by series
     print('  - MedAE =',round(MedAE_va[i],4)) # R^2 on te batches, by series
 
+print('')
+print('Median of tr R^2 over CV folds =',round(np.median(r2_tr),4))
+print('Median of te R^2 over CV folds =',round(np.median(r2_va),4))
+print('Average of tr R^2 over CV folds =',round(np.mean(r2_tr),4))
+print('Average of te R^2 over CV folds =',round(np.mean(r2_va),4))
 
 print('\n')
 nowagain = datetime.now(tz=ZoneInfo("Europe/Zurich"))
