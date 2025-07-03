@@ -6,7 +6,10 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 
 ### Version history
 
-This is twdlstm version 0.6.1. Change log:
+This is twdlstm version 0.6.2. Change log:
+* v0.6.2:
+  - pred.py bumped to v0.6.2 though nothing changed (works as is). test.py and config.yaml remain at v0.5.3 for now.
+  - in train.py and cv.py, lr scheduling now in config options (sch_rel_step_size and sch_gamma). Scheduling effectively disabled if sch_rel_step_size=1 or sch_gamma=1.
 * v0.6.1: in train.py and cv.py, added learning rate scheduler. Hard-coded to shrink lr three times by a factor of 0.1. So setting learning_rate to 1e-1 in config is prefereable.
 * v0.6:
   - in train.py, simplified the series plots, only showing the full time series with fitted values computed in a single forward pass.

@@ -1,4 +1,4 @@
-# twdlstm train v0.6.1
+# twdlstm train v0.6.2
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -45,7 +45,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm train v0.6.1\n')
+print(now_str + ' running twdlstm train v0.6.2\n')
 # print('\n')
 
 print('Supplied config:')
@@ -488,8 +488,10 @@ scheduler = torch.optim.lr_scheduler.StepLR(
     # gamma=0.9 # multiplicative factor reducing lr
     # step_size=int(maxepoch/2), # reduce lr once halfway
     # gamma=0.01 # multiplicative factor reducing lr
-    step_size=int(maxepoch/3), # shrink lr three times
-    gamma=0.1 # multiplicative factor reducing lr
+    # step_size=int(maxepoch/3), # shrink lr three times
+    # gamma=0.1 # multiplicative factor reducing lr
+    step_size=int(maxepoch/config['sch_rel_step_size']), # 
+    gamma=float(config['sch_gamma'])
 )
 
 #%% construct Laplacian regularization matrix

@@ -1,4 +1,4 @@
-# twdlstm cv v0.6.1
+# twdlstm cv v0.6.2
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -45,7 +45,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm cv v0.6.1\n')
+print(now_str + ' running twdlstm cv v0.6.2\n')
 # print('\n')
 
 print('Supplied config:')
@@ -427,7 +427,7 @@ MedAE_va = np.zeros(nb_series)
 
 # i = 0
 for i in range(nb_series): # i index identifies held-out series
-    print('--- optim CV fold',i,': held-out series =',seriesvec[i])
+    print('--- optim CV fold',i,'/',nb_series-1,': held-out series =',seriesvec[i])
     path_best_ckpt = path_ckpt+'_ckpt_best_fold'+str(i)+'.pt'
     range_series = list(range(nb_series))
     del range_series[i] # excl i from range_series
@@ -469,8 +469,10 @@ for i in range(nb_series): # i index identifies held-out series
         # gamma=0.9 # multiplicative factor reducing lr
         # step_size=int(maxepoch/2), # reduce lr once halfway
         # gamma=0.01 # multiplicative factor reducing lr
-        step_size=int(maxepoch/3), # shrink lr three times
-        gamma=0.1 # multiplicative factor reducing lr
+        # step_size=int(maxepoch/3), # shrink lr three times
+        # gamma=0.1 # multiplicative factor reducing lr
+        step_size=int(maxepoch/config['sch_rel_step_size']), # 
+        gamma=float(config['sch_gamma'])
     )
     
     nb_batches = int((nb_series-1)*b_nb) # reset for every fold
