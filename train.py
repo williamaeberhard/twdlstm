@@ -233,6 +233,10 @@ nb_batches = xb.shape[0] # overwrite
 
 #%% create tr and va subsets of batches
 nb_va = int(np.floor(nb_batches*config['prop_va']))
+if nb_va==0: # if no va batches, then all tr
+    nb_va = 2 # at least two obs in va
+    print('Warning: prop_va too small for nb obs, setting nb_va=2'+'\n')
+
 # ^ number of batches for va, out of nb_batches
 nb_tr = nb_batches - nb_va
 # ^ number of batches for tr

@@ -1,4 +1,4 @@
-# Configuration for twdlstm v0.5.3
+# Configuration for twdlstm v0.6.2
 
 path_data: '/mydata/forestcast/william/WP3/DataProcessed'
 path_outputdir: '/mydata/forestcast/william/WP3/LSTM_runs/outputs'
@@ -6,7 +6,8 @@ path_checkpointdir: '/mydata/forestcast/william/WP3/LSTM_runs/checkpoints'
 
 prefixoutput: '00' #
 
-tstoy: '05' # '04' for tstoy04, '05' for tstoy05, etc.
+tstoy: '08'
+# ^ '04' for tstoy04, '05' for tstoy05, etc.
 
 # * tstoy05 series (01-20) by species (unique by site)
 #   - Picea abies (5):
@@ -57,59 +58,52 @@ tstoy: '05' # '04' for tstoy04, '05' for tstoy05, etc.
 #     "01", "14", "16", "23", "25", "30", "33", "35", "37", "44", "45", "47",
 #     "50", "54", "72", "75", "78"
 
-
-# series: ["10", "28", "35", "36", "37", "38", "39"] # full
-# ^ Picea abies prop samp at 3 selected sites (among 4 after excl 1 series)
-# series_trva: ["10", "28"]
-# series_te: ["11", "12", "16", "17", "29", "40", "41"] # tstoy04 full
-# series_te: ["11", "12", "16"]
-# series_trva: ["05", "07", "15"] # tstoy05 all Picea abies tr
-# series_te: ["19"] # tstoy05 all Picea abies te
-series_trva: ["05", "22", "27", "29", "39",
-  "40", "41", "53", "56"] # tstoy08 all Pinus_sylvestris
-series_te: ["02"] # tstoy08 first Picea_abies
+# series_trva: ["05", "22", "27", "29", "39", "40", "41", "53", "56", # tstoy08 ps
+#   "02", "08", "09", "10", "15", "17", "21", "28", "34", "38",
+#   "43", "46", "52", "59", "61", "63", "65", "67", "70", "73", # tstoy08 pa
+#   "01", "14", "16", "23", "25", "30", "33", "35", "37", "44",
+#   "45", "47", "50", "54", "72", "75", "78"] # tstoy08 fs
+series_trva: ["08", "09"] # tstoy08 pa small subset
+series_te: ["02"] # tstoy08 first pa
 
 # ^ trva (tr and va) used by train.py, te only used by test.py
 
-# date_t0: '2021-01-01' # assuming time points are daily
-# ind_t0: 366 # 2021-01-01
-date_t0: '2020-01-01' # assuming time points are daily
-# nT_tr: 366 # size of tr set (time points), starts from date_t0
-# nT_va: 100 # size of va set, starts right after the nT_tr time points
-nT: 20 # subset size (time points), split in batches, starts from date_t0
-prop_va: 0.2 # proportion of data batches held-out for va set
+date_t0: '2018-01-01' # time points are daily
+nT: 200 # 1826 # time window length, obs split in batches, starts from date_t0
+prop_va: 0.01 # 0.01, 0.2 # prop of data batches held-out for va set (train.py)
 srs_seed: 1234 # seed for simple random sampling for va subset
 
 batch_len: 5 # length of batches, both for tr and va
-# loss_hor: 1 # nb values at end of each batch contribute to tr/va loss
-# ^ v0.4.2: deprecated, hard-coded to 1, i.e. only last obs of batch contributes
 
-covvec: ['pr', 'at']
-# covvec: ['pr', 'at', 'ws', 'dp', 'sr', 'lr'] # all in tstoy04
+# covvec: ['pr', 'at', 'ws', 'dp', 'sr', 'lr'] # tstoy04 all
+# covvec: ['pr', 'at', 'ws', 'dp', 'sr', 'lr', 'vp', 'sw', 'dy'] # tstoy08 all
+covvec: ['sw','vp'] # tstoy08 good small subset
 
-h_size: 32 # 8,16,32,64 <= 32 generally good
+h_size: 16 # 8,16,32,64 <= 32 generally good
 o_size: 1 # 1
 nb_layers: 1 # 1
 
-lambda_LaplacianReg: 0.01 # 0.0, 0.01, 0.05
+lambda_LaplacianReg: 0.0 # 0.0, 0.01, 0.05
 # ^ multiplies sum abs diff pred within each batch
 len_reg: 10 # min(10, batch_len/4)
-# ^ nb pred that are regularized in each batch, must be < batch_len
+# ^ nb pred that are regularized at end of each batch, must be < batch_len
 
-actout: 'ReLU' # 'ReLU', 'Softplus', 'Sigmoid'
-# ^ 'ReLU' and 'Softplus' for tstoy04-tstoy06, 'Sigmoid' for tstoy07
+actout: 'Sigmoid' # 'ReLU', 'Softplus', 'Sigmoid'
+# ^ 'ReLU' and 'Softplus' for tstoy04-tstoy06, 'Sigmoid' for tstoy07-tstoy08
 
 torch_seed: 123 # torch.randn
 
-maxepoch: 20 # 50, 100, 200, 500
-step_ckpt: 10 # 10
+maxepoch: 10 # 50, 100, 200, 500
+step_ckpt: 5 # 10
 # ^ print and record tr/va loss every maxepoch/step_ckpt epoch
 
-loss: 'MAE' # 'MSE', 'MAE'
+loss: 'MSE' # 'MSE', 'MAE'
 optim: 'RMSprop' # 'RMSprop', 'Adam', 'AdamW', 'RAdam'
 learning_rate: 1e-2 # 1e-2 is good, 1e-1 better if scheduling
-alphal2: 0.1 # L2 pen (weight decay) # 0.0, 0.5, 0.8
-momentum: 0.8 # momentum in RMSprop # 0.0, 0.5
+sch_rel_step_size: 2 # shrink lr every int(maxepoch/sch_rel_step_size) # 2, 3
+sch_gamma: 0.1 # factor shrinking lr # 0.1, 0.5
+alphal2: 0.1 # L2 pen (weight decay) in RMSprop # 0.0, 0.05, 0.1, 0.5, 0.8
+momentum: 0.5 # 0.8 # momentum in RMSprop # 0.0, 0.5, 0.8
 
 # run from /mydata/forestcast/william/WP3:
 # python src/twdlstm/train.py LSTM_runs/configs/config_00.yaml > LSTM_runs/logs/log_trva_00.txt
