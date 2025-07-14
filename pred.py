@@ -19,8 +19,8 @@ import zarr
 #%% read config yaml
 # os.chdir('/mydata/forestcast/william/WP3') # setwd()
 
+# path_config = '/mydata/forestcast/william/WP3/LSTM_preds/configs/config_71-01.yaml'
 path_config = str(sys.argv[1])
-# path_config = '/mydata/forestcast/william/WP3/LSTM_preds/configs/config_31-09.yaml'
 # print(path_config)
 
 with open(path_config) as cf_file:
@@ -72,11 +72,22 @@ names_cov = ['pr', 'at', 'ws', 'dp', 'sr', 'lr', 'vp', 'sw'] # updated 2025-06-1
 # ^ all cov processed on grid covering CH, ordering matters
 
 seriesvec = config['series_trva'] # different "ensemble member" for each CV fold
-covvec = config['covvec']
+covvec = config['covvec'][:] # "[:]" to copy, not reference
 # nT = config['nT'] # time window length, to be split in batches for tr/va
 
 nb_series = len(seriesvec)
-nb_cov = len(covvec)
+# nb_cov = len(covvec)
+
+# dy not in gridded cov
+if 'dy' in covvec: # if daily cov is in covvec
+    dy_in_cov = True # daily cov is in covvec
+    ind_dy = covvec.index('dy') # index of daily cov
+    covvec.remove('dy') # remove from covvec, add back after
+else:
+    dy_in_cov = False # daily cov is not in covvec
+
+# print(covvec)
+nb_cov = len(covvec) # nb of cov, excl dy
 
 ind_cov = [] # ini empty
 for j in covvec:
@@ -111,23 +122,55 @@ for t in range(1,b_len+1): # lag 1:b_len
     sd_s = zt.std(axis=(1, 2))    # cov sd
     for j in range(nb_cov): # loop over columns, overwrite each cov
         zt[j,:,:] = (zt[j,:,:]-mean_s[j])/sd_s[j]
-
+    
     zt = np.expand_dims(zt, axis=0) # add a dim for stacking series
-    x_full = np.concatenate((x_full,zt), axis=0)
+    # x_full = np.concatenate((x_full,zt), axis=0) # stack after => wrong
+    x_full = np.concatenate((zt,x_full), axis=0) # stack before => good
+    # ^ stack before because t lag goes backwards in time
 
 # x_full.shape # daily lags stacked in dim 0, keep only necessary cov in dim 1
 
 
+# add dy if in covvec
+if dy_in_cov:
+    path_dy_csv = path_tstoy + 'cov/tstoy' + config['tstoy'] + '_dy.csv'
+    dat_dy = pd.read_csv(
+        path_dy_csv,
+        header=0,
+        dtype={'ts':str, 'dy':float}
+    )
+    dy_day_pred = dat_dy['doy'][dat_dy['ts']==config['pred_day']].iloc[0]
+    cov_dy = np.arange(dy_day_pred-b_len,dy_day_pred+1)
+    # len(cov_dy) # x_full.shape[0]
+    
+    cov_dy = (cov_dy-np.mean(cov_dy))/np.std(cov_dy) # normalize
+    
+    cov_dy = np.reshape(np.repeat(cov_dy, x_full.shape[2]*x_full.shape[3]),
+        (cov_dy.shape[0],x_full.shape[2],x_full.shape[3]))
+    # ^ repeat cov_dy for each x/y coord, then reshape to grid dimensions
+    cov_dy = np.expand_dims(cov_dy, axis=1) # add a dim for stacking cov
+    # cov_dy.shape
+    
+    if ind_dy == x_full.shape[1]:
+        # if dy is last cov in x_full
+        x_full = np.append(x_full,cov_dy,axis=1)
+    else:
+        # if dy is not last cov in x_full
+        # x_full = np.insert(x_full, 1, cov_dy, axis=1) # not tested
+        print('\n','dy not last cov in covec,code not tested at l. 165, quitting')
+        quit()
+    
+    covvec = config['covvec'] # restore covvec with dy
+    nb_cov = len(covvec) # nb of cov, incl dy
 
-
-
-
+# x_full.shape
+# x_full[10,:,155,200]
+# x_full[10,:,155,210]
+# x_full[12,:,155,210]
+# ^ check that dy does not vary across x/y coords but varies in time
 
 
 #%% torch tensor (check CPU or GPU)
-
-
-
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # device = torch.device("cpu")
 # print(device)
@@ -362,6 +405,7 @@ elif config['source']=='train':
     
     wallclock1 = time.time() # in seconds
     print('double for loop over x/y took',round((wallclock1 - wallclock0)/60,1),'m\n')
+
 
 #%% write pred array into a zarr file
 # z_ypred = zarr.array(ypred)
