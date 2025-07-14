@@ -1,4 +1,4 @@
-# twdlstm train v0.6.2
+# twdlstm train v0.6.3
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -45,7 +45,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm train v0.6.2\n')
+print(now_str + ' running twdlstm train v0.6.3\n')
 # print('\n')
 
 print('Supplied config:')
@@ -63,17 +63,15 @@ nb_series = len(seriesvec)
 nb_cov = len(covvec)
 
 
-
-# ini: s=0
+# Load and stack all series (as before)
 s = 0
-series_s = seriesvec[s] # '01' # 01-42
+series_s = seriesvec[s]
 path_csv_series_s = (path_tstoy + 'SeparateSeries/tstoy' + config['tstoy'] +
     '_series_' + series_s + '.csv'
 )
 dat_s = pd.read_csv(
     path_csv_series_s,
     header=0,
-    # nrows=2 # to check cols
     dtype={
         'ts':str,
         'twd':float,
@@ -91,44 +89,15 @@ dat_s = pd.read_csv(
 )
 
 ind_t0 = int(np.where(dat_s['ts']==config['date_t0'])[0].item())
-# ^ dat row index corresponding to date_t0 in config
-
-# ind_tr = range(ind_t0, nT_tr+ind_t0, 1) # for i in ind_tr: print(i)
-# ind_va = range(nT_tr+ind_t0, nT_tr+ind_t0+nT_va, 1) # for i in ind_va: print(i)
-ind_t = range(ind_t0, nT+ind_t0, 1) # for i in ind_t: print(i)
-
-# y_full = dat_s['twd']
-# y_tr = y_full[ind_tr]
-# y_va = y_full[ind_va]
-# x_full = dat_s[covvec]
-# x_tr = x_full.iloc[ind_tr,:] # ini, time subset, all cols
-# x_va = x_full.iloc[ind_va,:] # ini, time subset, all cols
+ind_t = range(ind_t0, nT+ind_t0, 1)
 
 y_full = dat_s['twd'][ind_t]
-x_full = dat_s[covvec].iloc[ind_t,:] # ini, time subset, all cols
+x_full = dat_s[covvec].iloc[ind_t,:]
+x_full = np.expand_dims(x_full, axis=0)
+y_full = np.expand_dims(y_full, axis=0)
 
-# mean_s = np.apply_along_axis(np.mean, 0, x_tr) # tr cov mean
-# sd_s = np.apply_along_axis(np.std, 0, x_tr) # tr cov sd
-# for j in range(x_tr.shape[1]): # loop over columns, overwrite each cov
-#     x_tr.iloc[:,j] = (x_tr.iloc[:,j]-mean_s[j])/sd_s[j]
-#     x_va.iloc[:,j] = (x_va.iloc[:,j]-mean_s[j])/sd_s[j]
-
-# v0.3: use entire time window (tr and va batches) for cov norm
-mean_s = np.apply_along_axis(np.mean, 0, x_full) # tr cov mean
-sd_s = np.apply_along_axis(np.std, 0, x_full) # tr cov sd
-for j in range(nb_cov): # loop over columns, overwrite each cov
-    x_full.iloc[:,j] = (x_full.iloc[:,j]-mean_s[j])/sd_s[j]
-
-
-# x_tr = np.expand_dims(x_tr, axis=0) # add a dim for stacking series
-# x_va = np.expand_dims(x_va, axis=0) # add a dim for stacking series
-# y_tr = np.expand_dims(y_tr, axis=0) # add a dim for stacking series
-# y_va = np.expand_dims(y_va, axis=0) # add a dim for stacking series
-x_full = np.expand_dims(x_full, axis=0) # add a dim for stacking series
-y_full = np.expand_dims(y_full, axis=0) # add a dim for stacking series
-
-for s in range(1,nb_series): # loop over series after 1st 
-    series_s = seriesvec[s] # '01' # 01-42
+for s in range(1,nb_series):
+    series_s = seriesvec[s]
     path_csv_series_s = (path_tstoy + 'SeparateSeries/tstoy' + config['tstoy'] +
         '_series_' + series_s + '.csv'
     )
@@ -152,22 +121,19 @@ for s in range(1,nb_series): # loop over series after 1st
     )
     y_s_full = dat_s['twd'][ind_t]
     x_s_full = dat_s[covvec].iloc[ind_t,:]
-    mean_s = np.apply_along_axis(np.mean, 0, x_s_full)
-    sd_s = np.apply_along_axis(np.std, 0, x_s_full)
-    for j in range(nb_cov): # loop over columns, overwrite each cov
-        x_s_full.iloc[:,j] = (x_s_full.iloc[:,j]-mean_s[j])/sd_s[j]
-    
-    x_s_full = np.expand_dims(x_s_full, axis=0) # add a dim for stacking series
-    y_s_full = np.expand_dims(y_s_full, axis=0) # add a dim for stacking series
+    x_s_full = np.expand_dims(x_s_full, axis=0)
+    y_s_full = np.expand_dims(y_s_full, axis=0)
     x_full = np.concatenate((x_full, x_s_full), axis=0)
     y_full = np.concatenate((y_full, y_s_full), axis=0)
 
-# end loop over s in seriesvec
+# Normalize features after stacking all series
+# x_full shape: (nb_series, nT, nb_cov)
+mean_all = np.mean(x_full, axis=(0,1))  # mean over all series and time
+std_all = np.std(x_full, axis=(0,1))
+x_full = (x_full - mean_all) / std_all
 
 # x_full.shape
 # y_full.shape
-
-# x_normalized = True
 
 # xtr = torch.tensor(x_tr, dtype=torch.float32)
 # xva = torch.tensor(x_va, dtype=torch.float32)
@@ -217,7 +183,7 @@ for s in range(nb_series): # loop over series (dim 0)
 # hor = config['loss_hor']
 # ^ v0.4.2: hor fixed to 1, only last obs of each batch contributes to loss
 # ind_hor = range(int(b_len-hor),b_len)
-ind_hor = -1 # v0.4.2: only last obs
+ind_hor = -1 # v0.4.2: only last obs; -1 is used to select the last time step in each batch
 # ^ indices of obs contributing to loss eval within each batch
 
 
@@ -239,7 +205,7 @@ if nb_va==0: # if no va batches, then all tr
 
 # ^ number of batches for va, out of nb_batches
 nb_tr = nb_batches - nb_va
-# ^ number of batches for tr
+# ^ number of batches for tr (before any subsampling, see below)
 # nb_va/nb_batches # should be close to config['prop_va']
 
 # np.random.seed(seed=int(config['srs_seed'])) # fix seed simple random sampling
@@ -251,11 +217,28 @@ ind_tr = np.array(list(set(range(nb_batches)).difference(ind_va)))
 
 print('Indices of va batches:\n',', '.join(map(str, ind_va)),'\n')
 
+
+#%% subsample tr batches, to speed up optim
+prop_tr_sub = config.get('prop_tr_sub', 1.0)  # default to 1.0 if not set
+if prop_tr_sub < 1.0:
+    print('Subsampling tr batches to prop_tr_sub =',prop_tr_sub,'\n')
+    nb_tr_sub = int(np.floor(nb_tr*prop_tr_sub))
+    if nb_tr_sub == 0:
+        nb_tr_sub = 1  # at least one batch
+    
+    rng_trsub = np.random.default_rng(seed=int(config['srs_seed'])+1)
+    # ^ different seed for tr batches subsampling, though still fixed
+    ind_tr_sub = np.sort(rng_trsub.choice(ind_tr, size=nb_tr_sub, replace=False))
+    
+    ind_tr = ind_tr_sub # overwrite ind_tr with subsampled indices
+    nb_tr = len(ind_tr) # overwrite nb_tr with subsampled number of batches
+
+
+
 nb_tr_loss = nb_tr # nb_tr*hor
 # ^ number of contributions to tr loss, some obs counted more than once if hor>1
 #   because batches overlap in time (shifted by 1 time step from one another)
 nb_va_loss = nb_va # nb_va*hor
-
 
 
 #%% LSTM model class
@@ -406,11 +389,16 @@ model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
 # path_ckpt = '/mydata/forestcast/william/WP3/LSTM_runs/checkpoints/00_ckpt_10.pt'
 # model.load_state_dict(torch.load(path_ckpt, weights_only=False)) # checkpoint
 
-h0 = torch.zeros(nb_layers, h_size) # num_layers, hidden_size
-c0 = torch.zeros(nb_layers, h_size) # num_layers, hidden_size
+# batch_size = 1  # or set this to the actual batch size you intend to use
+# h0 = torch.zeros(nb_layers, 1, h_size, device=device) # num_layers, batch_size=1, hidden_size
+# c0 = torch.zeros(nb_layers, batch_size, h_size, device=device) # num_layers, batch_size, hidden_size
+
+h0 = torch.zeros(nb_layers, h_size, device=device) # num_layers, hidden_size
+c0 = torch.zeros(nb_layers, h_size, device=device) # num_layers, hidden_size
+
 
 # torch.manual_seed(config['seed'])
-tgen = torch.Generator(device=device).manual_seed(config['torch_seed'])
+tgen = torch.Generator(device=device).manual_seed(int(config['torch_seed']))
 
 # state_dict_inirand = OrderedDict({
 #     'lstm.weight_ih_l0': torch.randn(4*h_size,i_size),
@@ -431,7 +419,11 @@ state_dict_inirand = OrderedDict({
 })
 # print(state_dict_inirand['linear.bias'])
 # print(model.state_dict()['linear.bias'])
-model.load_state_dict(state_dict_inirand, strict=False)
+missing_unexpected = model.load_state_dict(state_dict_inirand, strict=False)
+if missing_unexpected.missing_keys or missing_unexpected.unexpected_keys:
+    print("Warning: Some keys were missing or unexpected when loading state_dict:")
+    print("  Missing keys:", missing_unexpected.missing_keys)
+    print("  Unexpected keys:", missing_unexpected.unexpected_keys)
 # ^ <All keys matched successfully> = ok
 
 nb_param = 4*h_size*i_size + 4*h_size*h_size + 4*h_size*2 + o_size*(h_size+1)
@@ -486,6 +478,10 @@ elif optim=='RAdam':
 
 maxepoch = int(config['maxepoch'])
 
+step_size = int(maxepoch/config['sch_rel_step_size'])
+if step_size < 1:
+    step_size = 1
+
 scheduler = torch.optim.lr_scheduler.StepLR(
     optimizer=optimizer,
     # step_size=int(maxepoch/10), # reduce lr every 1/10 of maxepoch
@@ -494,9 +490,10 @@ scheduler = torch.optim.lr_scheduler.StepLR(
     # gamma=0.01 # multiplicative factor reducing lr
     # step_size=int(maxepoch/3), # shrink lr three times
     # gamma=0.1 # multiplicative factor reducing lr
-    step_size=int(maxepoch/config['sch_rel_step_size']), # 
+    step_size=step_size, # 
     gamma=float(config['sch_gamma'])
 )
+
 
 #%% construct Laplacian regularization matrix
 len_reg = config['len_reg']
@@ -545,7 +542,7 @@ while (epoch < maxepoch) :
         loss_tr += losstr.item()
         losstr.backward() # accumulate grad over batches
     
-    if epoch%(maxepoch/step_ckpt)==(maxepoch/step_ckpt-1):
+    if epoch % (maxepoch // step_ckpt) == (maxepoch // step_ckpt - 1):
         with torch.no_grad():
             for b in ind_va: # loop over va batches (s and t)
                 fwdpass = model(xb[b,:,:], (h0,c0)) # from ini

@@ -1,4 +1,4 @@
-# Configuration for twdlstm v0.6.2
+# Configuration for twdlstm v0.6.3
 
 path_data: '/mydata/forestcast/william/WP3/DataProcessed'
 path_outputdir: '/mydata/forestcast/william/WP3/LSTM_runs/outputs'
@@ -71,7 +71,10 @@ series_te: ["02"] # tstoy08 first pa
 date_t0: '2018-01-01' # time points are daily
 nT: 200 # 1826 # time window length, obs split in batches, starts from date_t0
 prop_va: 0.01 # 0.01, 0.2 # prop of data batches held-out for va set (train.py)
+prop_tr_sub: 0.5 # 0.5, 1.0 # prop of tr subsampled batches (train.py)
 srs_seed: 1234 # seed for simple random sampling for va subset
+
+
 
 batch_len: 5 # length of batches, both for tr and va
 
@@ -85,7 +88,7 @@ nb_layers: 1 # 1
 
 lambda_LaplacianReg: 0.0 # 0.0, 0.01, 0.05
 # ^ multiplies sum abs diff pred within each batch
-len_reg: 10 # min(10, batch_len/4)
+len_reg: 2 # 10 # min(10, batch_len/4)
 # ^ nb pred that are regularized at end of each batch, must be < batch_len
 
 actout: 'Sigmoid' # 'ReLU', 'Softplus', 'Sigmoid'
