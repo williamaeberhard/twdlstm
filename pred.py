@@ -1,4 +1,4 @@
-# twdlstm pred v0.6.2
+# twdlstm pred v0.6.3
 
 import sys # CLI arguments: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -19,7 +19,7 @@ import zarr
 #%% read config yaml
 # os.chdir('/mydata/forestcast/william/WP3') # setwd()
 
-# path_config = '/mydata/forestcast/william/WP3/LSTM_preds/configs/config_71-01.yaml'
+# path_config = '/mydata/forestcast/william/WP3/LSTM_preds/configs/config_00-00.yaml'
 path_config = str(sys.argv[1])
 # print(path_config)
 
@@ -47,7 +47,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm pred v0.6.2\n')
+print(now_str + ' running twdlstm pred v0.6.3\n')
 # print('\n')
 
 print('Supplied config:')
@@ -95,12 +95,11 @@ for j in covvec:
 
 x_full = z0[ind_cov,:,:] # ini at actual pred day = lag 0
 
-# normalize each cov by its respective mean/sd (over grid points)
-mean_s = x_full.mean(axis=(1, 2)) # cov mean
-sd_s = x_full.std(axis=(1, 2))    # cov sd
-for j in range(nb_cov): # loop over columns, overwrite each cov
-    x_full[j,:,:] = (x_full[j,:,:]-mean_s[j])/sd_s[j]
-
+# # normalize each cov by its respective mean/sd (over grid points)
+# mean_s = x_full.mean(axis=(1, 2)) # cov mean
+# sd_s = x_full.std(axis=(1, 2))    # cov sd
+# for j in range(nb_cov): # loop over columns, overwrite each cov
+#     x_full[j,:,:] = (x_full[j,:,:]-mean_s[j])/sd_s[j]
 
 x_full = np.expand_dims(x_full, axis=0) # add a dim for stacking series
 # x_full.shape # keep only necessary cov. dim 0 = daily lags
@@ -117,11 +116,12 @@ for t in range(1,b_len+1): # lag 1:b_len
     dayt = day_t.strftime('%Y%m%d') # 'YYYYMMDD' format
     zt = zarr.load(path_covgrid+'/'+dayt+'.zarr')
     zt = zt[ind_cov,:,:]
-    # normalize each cov by its respective mean/sd (over grid points) 
-    mean_s = zt.mean(axis=(1, 2)) # cov mean
-    sd_s = zt.std(axis=(1, 2))    # cov sd
-    for j in range(nb_cov): # loop over columns, overwrite each cov
-        zt[j,:,:] = (zt[j,:,:]-mean_s[j])/sd_s[j]
+    
+    # # normalize each cov by its respective mean/sd (over grid points) 
+    # mean_s = zt.mean(axis=(1, 2)) # cov mean
+    # sd_s = zt.std(axis=(1, 2))    # cov sd
+    # for j in range(nb_cov): # loop over columns, overwrite each cov
+    #     zt[j,:,:] = (zt[j,:,:]-mean_s[j])/sd_s[j]
     
     zt = np.expand_dims(zt, axis=0) # add a dim for stacking series
     # x_full = np.concatenate((x_full,zt), axis=0) # stack after => wrong
@@ -129,7 +129,6 @@ for t in range(1,b_len+1): # lag 1:b_len
     # ^ stack before because t lag goes backwards in time
 
 # x_full.shape # daily lags stacked in dim 0, keep only necessary cov in dim 1
-
 
 # add dy if in covvec
 if dy_in_cov:
@@ -143,7 +142,7 @@ if dy_in_cov:
     cov_dy = np.arange(dy_day_pred-b_len,dy_day_pred+1)
     # len(cov_dy) # x_full.shape[0]
     
-    cov_dy = (cov_dy-np.mean(cov_dy))/np.std(cov_dy) # normalize
+    # cov_dy = (cov_dy-np.mean(cov_dy))/np.std(cov_dy) # normalize
     
     cov_dy = np.reshape(np.repeat(cov_dy, x_full.shape[2]*x_full.shape[3]),
         (cov_dy.shape[0],x_full.shape[2],x_full.shape[3]))
@@ -162,6 +161,12 @@ if dy_in_cov:
     
     covvec = config['covvec'] # restore covvec with dy
     nb_cov = len(covvec) # nb of cov, incl dy
+
+# Normalize features after stacking all series
+# x_full shape: (time points (batch_len+1), nb_cov, x coords, y coords)
+mean_all = np.mean(x_full, axis=(0,2,3), keepdims=True)
+std_all = np.std(x_full, axis=(0,2,3), keepdims=True)
+x_full = (x_full - mean_all) / std_all
 
 # x_full.shape
 # x_full[10,:,155,200]

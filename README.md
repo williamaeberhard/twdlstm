@@ -8,8 +8,8 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 
 This is twdlstm version 0.6.3. Change log:
 * v0.6.3:
-  - train.py: cov mean/sd normalization now done for all series together.
-  - train.py: added tr batches subsampling with config argument prop_tr_sub. If prop_tr_sub=1.0 thne no subsampling (using all tr available obs, like before).
+  - train.py, cv.py, pred.py: cov mean/sd normalization now done for all series/time points/grid points taken together.
+  - train.py, cv.py: added tr batches subsampling with config argument prop_tr_sub. If prop_tr_sub=1.0 then no subsampling (using all tr available obs, like before).
 * v0.6.2:
   - pred.py adapted for additional day of the year (dy) covariate (otherwise worked as is since v0.5.3). test.py and config.yaml remain at v0.5.3 for now.
   - in train.py and cv.py, lr scheduling now in config options (sch_rel_step_size and sch_gamma). Scheduling effectively disabled if sch_rel_step_size=1 or sch_gamma=1.
