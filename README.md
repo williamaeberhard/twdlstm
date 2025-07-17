@@ -6,7 +6,9 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 
 ### Version history
 
-This is twdlstm version 0.6.3. Change log:
+This is twdlstm version 0.6.4. Change log:
+* v0.6.4:
+  - train.py, cv.py: added static input features (z), passed to a fully connected layer, a tanh activation function, and then concatenated to the LSTM hidden state before the last linear layer and output activation.
 * v0.6.3:
   - train.py, cv.py, pred.py: cov mean/sd normalization now done for all series/time points/grid points taken together.
   - train.py, cv.py: added tr batches subsampling with config argument prop_tr_sub. If prop_tr_sub=1.0 then no subsampling (using all tr available obs, like before).

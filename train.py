@@ -284,7 +284,7 @@ nb_layers = config['nb_layers']
 
 if config['actout']=='ReLU':
     class Model_LSTM(torch.nn.Module):
-        def __init__(self, input_size, d_hidden, num_layers, output_size):
+        def __init__(self, input_size, d_hidden, num_layers, output_size, z_size, z_fc_size):
             super().__init__()
             self.d_hidden = d_hidden
             self.num_layers = num_layers
@@ -296,18 +296,21 @@ if config['actout']=='ReLU':
             )
             # self.drop = torch.nn.Dropout(p=0.5)
             self.linear = torch.nn.Linear(
-                in_features=d_hidden,
+                in_features=d_hidden + z_fc_size,
                 out_features=output_size
             )
+            self.z_fc = torch.nn.Linear(z_size, z_fc_size)
             self.actout = torch.nn.ReLU()
+            self.z_act = torch.nn.Tanh()
         
-        def forward(self, x, hidden=None):
+        def forward(self, x, z, hidden=None):
             if hidden is None:
                 hidden = self.get_hidden(x)
-            x, hidden = self.lstm(x, hidden)
-            # x = self.actout(self.linear(self.drop(x)))
-            x = self.actout(self.linear(x))
-            return x, hidden
+            x_lstm, hidden = self.lstm(x, hidden)
+            z_fc_out = self.z_act(self.z_fc(z)).unsqueeze(0).expand(x_lstm.shape[0], -1)  # shape: (seq_len, z_fc_size)
+            x_concat = torch.cat([x_lstm.squeeze(0), z_fc_out], dim=1) # shape: (seq_len, d_hidden + z_fc_size)
+            x_out = self.actout(self.linear(x_concat))
+            return x_out, hidden
         
         def get_hidden(self, x):
             # second axis = batch size, i.e. x.shape[0] when batch_first=True
@@ -328,7 +331,7 @@ if config['actout']=='ReLU':
             return hidden
 elif config['actout']=='Softplus':
     class Model_LSTM(torch.nn.Module):
-        def __init__(self, input_size, d_hidden, num_layers, output_size):
+        def __init__(self, input_size, d_hidden, num_layers, output_size, z_size, z_fc_size):
             super().__init__()
             self.d_hidden = d_hidden
             self.num_layers = num_layers
@@ -338,20 +341,22 @@ elif config['actout']=='Softplus':
                 num_layers=num_layers,
                 batch_first=True
             )
-            # self.drop = torch.nn.Dropout(p=0.5)
             self.linear = torch.nn.Linear(
-                in_features=d_hidden,
+                in_features=d_hidden + z_fc_size,
                 out_features=output_size
             )
+            self.z_fc = torch.nn.Linear(z_size, z_fc_size)
+            self.z_act = torch.nn.Tanh()
             self.actout = torch.nn.Softplus()
         
-        def forward(self, x, hidden=None):
+        def forward(self, x, z, hidden=None):
             if hidden is None:
                 hidden = self.get_hidden(x)
-            x, hidden = self.lstm(x, hidden)
-            # x = self.actout(self.linear(self.drop(x)))
-            x = self.actout(self.linear(x))
-            return x, hidden
+            x_lstm, hidden = self.lstm(x, hidden)
+            z_fc_out = self.z_act(self.z_fc(z)).unsqueeze(0).expand(x_lstm.shape[0], -1)  # shape: (seq_len, z_fc_size)
+            x_concat = torch.cat([x_lstm.squeeze(0), z_fc_out], dim=1) # shape: (seq_len, d_hidden + z_fc_size)
+            x_out = self.actout(self.linear(x_concat))
+            return x_out, hidden
         
         def get_hidden(self, x):
             # second axis = batch size, i.e. x.shape[0] when batch_first=True
