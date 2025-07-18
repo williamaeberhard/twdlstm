@@ -188,13 +188,17 @@ ind_hor = -1 # v0.4.2: only last obs; -1 is used to select the last time step in
 
 
 #%% deal with nan in response (necessary for tstoy08)
-ind_nonan = ~torch.any(yb.isnan(),dim=1) # boolean, T if not nan
+# ind_nonan = ~torch.any(yb.isnan(),dim=1) # bad: excl if any nan <= old train.py
+ind_nonan = ~yb[:,ind_hor].isnan() # good: excl if last is nan <= same as cv.py
+
 whichseries = whichseries[ind_nonan.cpu()] # for plotting for each series
 xb = xb[ind_nonan,:,:] # overwrite
 yb = yb[ind_nonan,:] # overwrite
 
 nb_batches = xb.shape[0] # overwrite
 
+# xb.shape # batches = dim 0
+# yb.shape # batches = dim 0
 
 
 #%% create tr and va subsets of batches
@@ -215,7 +219,8 @@ ind_va = np.sort(rng.choice(range(nb_batches), size=nb_va, replace=False))
 ind_tr = np.array(list(set(range(nb_batches)).difference(ind_va)))
 # ^ set diff: in range but not in ind_va
 
-print('Indices of va batches:\n',', '.join(map(str, ind_va)),'\n')
+# print('Indices of va batches:\n',', '.join(map(str, ind_va)),'\n')
+# # ^ v0.6.4: disabled printing all the va batches indices, useless
 
 
 #%% subsample tr batches, to speed up optim

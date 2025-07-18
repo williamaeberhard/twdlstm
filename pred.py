@@ -1,4 +1,4 @@
-# twdlstm pred v0.6.3
+# twdlstm pred v0.6.4
 
 import sys # CLI arguments: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -47,7 +47,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm pred v0.6.3\n')
+print(now_str + ' running twdlstm pred v0.6.4\n')
 # print('\n')
 
 print('Supplied config:')
@@ -186,6 +186,57 @@ xfull = torch.tensor(x_full, dtype=torch.float32)
 # xfull.shape
 
 
+
+#%% setup static input features (z)
+path_staticcovgrid = config['path_staticcovgrid']
+
+# here!!!
+
+
+
+zvec = config['zvec']
+z_size = len(zvec) # size of z vector = nb static input features
+z_fc_size = int(config['z_fc_size']) # size of z vector
+
+path_csv_static = (
+    path_tstoy + 'tstoy' + config['tstoy'] + '_staticcov.csv'
+)
+dat_static = pd.read_csv(
+    path_csv_static,
+    header=0,
+    dtype={
+        'id':str,   # id_sisp
+        'ea':float, # mch_easting
+        'no':float, # mch_northing
+        'el':float  # mch_elevation
+    }
+)
+
+zmat = dat_static[dat_static['id'].isin(seriesvec)] # subset series
+zmat = zmat[zvec] # keep user-supplied static features
+
+mean_z = np.mean(zmat, axis=0) # mean over series
+std_z = np.std(zmat, axis=0) # sd over series
+zmat = (zmat - mean_z) / std_z # normalize static features, overwrite
+
+# zmat.shape # nb_series, z_size
+
+zb = torch.tensor(zmat.values, dtype=torch.float32, device=device)
+# zb.shape # nb_series, z_size
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #%% LSTM model class
 i_size = nb_cov # xb.shape[2] # nb cols in x = nb input features 
 h_size = config['h_size']
@@ -194,7 +245,7 @@ nb_layers = config['nb_layers']
 
 if config['actout']=='ReLU':
     class Model_LSTM(torch.nn.Module):
-        def __init__(self, input_size, d_hidden, num_layers, output_size):
+        def __init__(self, input_size, d_hidden, num_layers, output_size, z_size, z_fc_size):
             super().__init__()
             self.d_hidden = d_hidden
             self.num_layers = num_layers
@@ -206,18 +257,21 @@ if config['actout']=='ReLU':
             )
             # self.drop = torch.nn.Dropout(p=0.5)
             self.linear = torch.nn.Linear(
-                in_features=d_hidden,
+                in_features=d_hidden + z_fc_size,
                 out_features=output_size
             )
+            self.z_fc = torch.nn.Linear(z_size, z_fc_size)
             self.actout = torch.nn.ReLU()
+            self.z_act = torch.nn.Tanh()
         
-        def forward(self, x, hidden=None):
+        def forward(self, x, z, hidden=None):
             if hidden is None:
                 hidden = self.get_hidden(x)
-            x, hidden = self.lstm(x, hidden)
-            # x = self.actout(self.linear(self.drop(x)))
-            x = self.actout(self.linear(x))
-            return x, hidden
+            x_lstm, hidden = self.lstm(x, hidden)
+            z_fc_out = self.z_act(self.z_fc(z)).unsqueeze(0).expand(x_lstm.shape[0], -1)  # shape: (seq_len, z_fc_size)
+            x_concat = torch.cat([x_lstm.squeeze(0), z_fc_out], dim=1) # shape: (seq_len, d_hidden + z_fc_size)
+            x_out = self.actout(self.linear(x_concat))
+            return x_out, hidden
         
         def get_hidden(self, x):
             # second axis = batch size, i.e. x.shape[0] when batch_first=True
@@ -238,7 +292,7 @@ if config['actout']=='ReLU':
             return hidden
 elif config['actout']=='Softplus':
     class Model_LSTM(torch.nn.Module):
-        def __init__(self, input_size, d_hidden, num_layers, output_size):
+        def __init__(self, input_size, d_hidden, num_layers, output_size, z_size, z_fc_size):
             super().__init__()
             self.d_hidden = d_hidden
             self.num_layers = num_layers
@@ -248,20 +302,22 @@ elif config['actout']=='Softplus':
                 num_layers=num_layers,
                 batch_first=True
             )
-            # self.drop = torch.nn.Dropout(p=0.5)
             self.linear = torch.nn.Linear(
-                in_features=d_hidden,
+                in_features=d_hidden + z_fc_size,
                 out_features=output_size
             )
+            self.z_fc = torch.nn.Linear(z_size, z_fc_size)
+            self.z_act = torch.nn.Tanh()
             self.actout = torch.nn.Softplus()
         
-        def forward(self, x, hidden=None):
+        def forward(self, x, z, hidden=None):
             if hidden is None:
                 hidden = self.get_hidden(x)
-            x, hidden = self.lstm(x, hidden)
-            # x = self.actout(self.linear(self.drop(x)))
-            x = self.actout(self.linear(x))
-            return x, hidden
+            x_lstm, hidden = self.lstm(x, hidden)
+            z_fc_out = self.z_act(self.z_fc(z)).unsqueeze(0).expand(x_lstm.shape[0], -1)  # shape: (seq_len, z_fc_size)
+            x_concat = torch.cat([x_lstm.squeeze(0), z_fc_out], dim=1) # shape: (seq_len, d_hidden + z_fc_size)
+            x_out = self.actout(self.linear(x_concat))
+            return x_out, hidden
         
         def get_hidden(self, x):
             # second axis = batch size, i.e. x.shape[0] when batch_first=True
@@ -282,7 +338,7 @@ elif config['actout']=='Softplus':
             return hidden
 elif config['actout']=='Sigmoid':
     class Model_LSTM(torch.nn.Module):
-        def __init__(self, input_size, d_hidden, num_layers, output_size):
+        def __init__(self, input_size, d_hidden, num_layers, output_size, z_size, z_fc_size):
             super().__init__()
             self.d_hidden = d_hidden
             self.num_layers = num_layers
@@ -292,23 +348,27 @@ elif config['actout']=='Sigmoid':
                 num_layers=num_layers,
                 batch_first=True
             )
-            # self.drop = torch.nn.Dropout(p=0.5)
             self.linear = torch.nn.Linear(
-                in_features=d_hidden,
+                in_features=d_hidden + z_fc_size,
                 out_features=output_size
             )
+            self.z_fc = torch.nn.Linear(z_size, z_fc_size)
             self.actout = torch.nn.Sigmoid()
+            self.z_act = torch.nn.Tanh()
         
-        def forward(self, x, hidden=None):
+        def forward(self, x, z, hidden=None):
             if hidden is None:
                 hidden = self.get_hidden(x)
-            x, hidden = self.lstm(x, hidden)
-            # x = self.actout(self.linear(self.drop(x)))
-            x = self.actout(self.linear(x))
-            return x, hidden
+            x_lstm, hidden = self.lstm(x, hidden)
+            # z_fc_out = self.z_act(self.z_fc(z)).unsqueeze(0).expand(x_lstm.shape[1], -1)  # shape: (seq_len, z_fc_size)
+            z_fc_out = self.z_act(self.z_fc(z)).unsqueeze(0).expand(x_lstm.shape[0], -1)  # shape: (seq_len, z_fc_size)
+            # z_fc_out = self.z_act(self.z_fc(z)) # shape: (z_fc_size)
+            # Concatenate z_fc_out to each time step in x_lstm
+            x_concat = torch.cat([x_lstm.squeeze(0), z_fc_out], dim=1) # shape: (seq_len, d_hidden + z_fc_size)
+            x_out = self.actout(self.linear(x_concat))
+            return x_out, hidden
         
         def get_hidden(self, x):
-            # second axis = batch size, i.e. x.shape[0] when batch_first=True
             hidden = (
                 torch.zeros(
                     self.num_layers,
@@ -325,7 +385,8 @@ elif config['actout']=='Sigmoid':
             )
             return hidden
 
-model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
+# model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
+model = Model_LSTM(i_size, h_size, nb_layers, o_size, z_size, z_fc_size) # instantiate
 # model.train() # print(model)
 
 
