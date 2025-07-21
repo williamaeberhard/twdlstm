@@ -20,6 +20,7 @@ import zarr
 # os.chdir('/mydata/forestcast/william/WP3') # setwd()
 
 # path_config = '/mydata/forestcast/william/WP3/LSTM_preds/configs/config_00-00.yaml'
+# path_config = '/mydata/forestcast/william/WP3/LSTM_preds/configs/config_98-00.yaml'
 path_config = str(sys.argv[1])
 # print(path_config)
 
@@ -110,7 +111,7 @@ b_len = int(config['batch_len'])
 day_0 = datetime.strptime(day_pred,'%Y%m%d')
 oneday = dtm.timedelta(days=1) # one unit of temporal lag
 
-for t in range(1,b_len+1): # lag 1:b_len
+for t in range(1,b_len): # range(1,b_len+1) better but this matches train/cv
     # t = 1
     day_t = day_0 - t*oneday # lag one day for each t
     dayt = day_t.strftime('%Y%m%d') # 'YYYYMMDD' format
@@ -162,6 +163,7 @@ if dy_in_cov:
     covvec = config['covvec'] # restore covvec with dy
     nb_cov = len(covvec) # nb of cov, incl dy
 
+
 # Normalize features after stacking all series
 # x_full shape: (time points (batch_len+1), nb_cov, x coords, y coords)
 mean_all = np.mean(x_full, axis=(0,2,3), keepdims=True)
@@ -183,57 +185,38 @@ torch.set_default_device(device)
 
 xfull = torch.tensor(x_full, dtype=torch.float32)
 
-# xfull.shape
+# xfull.shape # nb time points, nb cov, x coords, y coords
 
 
 
 #%% setup static input features (z)
 path_staticcovgrid = config['path_staticcovgrid']
 
-# here!!!
+z_static = zarr.load(path_staticcovgrid+'/covgrid_static.zarr')
+# z_static.shape # 3 static cov (ea, no, el), 320 x coords, 224 y coords
 
-
+names_staticcov = ['ea', 'no', 'el'] # updated 2025-07-21
+# ^ order matters
 
 zvec = config['zvec']
 z_size = len(zvec) # size of z vector = nb static input features
 z_fc_size = int(config['z_fc_size']) # size of z vector
 
-path_csv_static = (
-    path_tstoy + 'tstoy' + config['tstoy'] + '_staticcov.csv'
-)
-dat_static = pd.read_csv(
-    path_csv_static,
-    header=0,
-    dtype={
-        'id':str,   # id_sisp
-        'ea':float, # mch_easting
-        'no':float, # mch_northing
-        'el':float  # mch_elevation
-    }
-)
+ind_zvec = [] # ini empty
+for j in zvec:
+    ind_zvec.append(names_staticcov.index(j)) # append index of kept static cov in order
 
-zmat = dat_static[dat_static['id'].isin(seriesvec)] # subset series
-zmat = zmat[zvec] # keep user-supplied static features
+zmat = z_static[ind_zvec,:,:] # keep only user-supplied static features
+# zmat.shape # good, kept the first dim
 
-mean_z = np.mean(zmat, axis=0) # mean over series
-std_z = np.std(zmat, axis=0) # sd over series
+mean_z = np.mean(zmat, axis=(1,2)) # mean over series
+std_z = np.std(zmat, axis=(1,2)) # sd over series
 zmat = (zmat - mean_z) / std_z # normalize static features, overwrite
 
-# zmat.shape # nb_series, z_size
+# zmat.shape # nb cov, x coords, y coords
 
-zb = torch.tensor(zmat.values, dtype=torch.float32, device=device)
-# zb.shape # nb_series, z_size
-
-
-
-
-
-
-
-
-
-
-
+zb = torch.tensor(zmat, dtype=torch.float32, device=device) # zmat.values
+# zb.shape # nb cov, x coords, y coords
 
 
 
@@ -390,6 +373,7 @@ model = Model_LSTM(i_size, h_size, nb_layers, o_size, z_size, z_fc_size) # insta
 # model.train() # print(model)
 
 
+
 #%% initial values
 h0 = torch.zeros(nb_layers, h_size, device=device) # num_layers, hidden_size
 c0 = torch.zeros(nb_layers, h_size, device=device) # num_layers, hidden_size
@@ -428,6 +412,7 @@ path_ckpt = config['path_checkpointdir'] + '/' + config['prefixoutput']
 ind_hor = -1 # last obs
 
 if config['source']=='cv':
+    # TODO: adapt for static cov
     ypred = np.zeros(shape=(nb_series, x_full.shape[2], x_full.shape[3]))
     
     wallclock0 = time.time()
@@ -462,11 +447,12 @@ elif config['source']=='train':
     model.load_state_dict(torch.load(path_best_ckpt, weights_only=False))
     # ^ <All keys matched successfully> = ok
     model.eval() #
-    for xc in range(x_full.shape[2]):
-        # xc = 0
-        for yc in range(x_full.shape[3]):
-            # yc = 0
-            fwdpass = model(xfull[:,:,xc,yc], (h0,c0))
+    for xc in range(xfull.shape[2]):
+        # xc = 150
+        for yc in range(xfull.shape[3]):
+            # yc = 100
+            zb_xy = zb[:,xc,yc] # static covariates for series b
+            fwdpass = model(xfull[:,:,xc,yc], zb_xy, (h0,c0))
             ypred[0,xc,yc] = fwdpass[0][ind_hor]
     
     wallclock1 = time.time() # in seconds
