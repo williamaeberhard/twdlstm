@@ -20,7 +20,7 @@ import zarr
 # os.chdir('/mydata/forestcast/william/WP3') # setwd()
 
 # path_config = '/mydata/forestcast/william/WP3/LSTM_preds/configs/config_00-00.yaml'
-# path_config = '/mydata/forestcast/william/WP3/LSTM_preds/configs/config_98-00.yaml'
+# path_config = '/mydata/forestcast/william/WP3/LSTM_preds/configs/config_106-01.yaml'
 path_config = str(sys.argv[1])
 # print(path_config)
 
