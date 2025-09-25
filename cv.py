@@ -1,4 +1,4 @@
-# twdlstm cv v0.6.4
+# twdlstm cv v0.6.5
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -18,6 +18,7 @@ from collections import OrderedDict # saving/loading model state_dict
 # os.chdir('/mydata/forestcast/william/WP3') # setwd()
 
 # path_config = '/mydata/forestcast/william/WP3/LSTM_runs/configs/config_00.yaml'
+# path_config = '/mydata/forestcast/william/WP3/LSTM_runs/configs/config_113.yaml'
 path_config = str(sys.argv[1])
 # print(path_config)
 
@@ -40,36 +41,52 @@ colvec = [
 
 #%% load tstoy data, loop over series and stack
 path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
-# '/mydata/forestcast/william/WP3/DataProcessed/tstoy04/'
 
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm cv v0.6.4\n')
+print(now_str + ' running twdlstm cv v0.6.5\n')
 # print('\n')
 
 print('Supplied config:')
 print(path_config+'\n')
 # print('\n')
 
-# seriesvec = config['series'] # up to v0.3.2
-seriesvec = config['series_trva'] # as of v0.4, distinguish from series_te
+seriesvec = config['series_trva'] # distinguish from series_te
 covvec = config['covvec']
 nT = config['nT'] # time window length, to be split in batches for tr/va
 
 nb_series = len(seriesvec)
 nb_cov = len(covvec)
 
-# Load and stack all series (as before)
-s = 0
+# Load and stack all series
+s = 0 # ini with first sisp
 series_s = seriesvec[s]
-path_csv_series_s = (path_tstoy + 'SeparateSeries/tstoy' + config['tstoy'] +
-    '_series_' + series_s + '.csv'
-)
-dat_s = pd.read_csv(
-    path_csv_series_s,
-    header=0,
-    dtype={
+
+if config['tstoy']=='09':
+    path_csv_series_s = (path_tstoy + 'SeparateSisp_tr/sisp_' + series_s + '.csv')
+    dtype_dict = {
+        'ts':str,
+        'twd':float,
+        'pr':float,
+        'at':float,
+        'ws':float,
+        'dp':float,
+        'sr':float,
+        'lr':float,
+        'vp':float,
+        'sw':float,
+        'ld':float,
+        'sd':float,
+        'cd':float,
+        'lt':float,
+        'st':float
+    }
+else:
+    path_csv_series_s = (path_tstoy + 'SeparateSeries/tstoy' + config['tstoy'] +
+        '_series_' + series_s + '.csv'
+    )
+    dtype_dict = {
         'ts':str,
         'twd':float,
         'pr':float,
@@ -83,7 +100,15 @@ dat_s = pd.read_csv(
         'dy':float,
         'el':float
     }
+
+# 
+
+dat_s = pd.read_csv(
+    path_csv_series_s,
+    header=0,
+    dtype=dtype_dict
 )
+# print(dat_s.head())
 
 ind_t0 = int(np.where(dat_s['ts']==config['date_t0'])[0].item())
 ind_t = range(ind_t0, nT+ind_t0, 1)
@@ -93,28 +118,20 @@ x_full = dat_s[covvec].iloc[ind_t,:]
 x_full = np.expand_dims(x_full, axis=0)
 y_full = np.expand_dims(y_full, axis=0)
 
+
 for s in range(1,nb_series):
     series_s = seriesvec[s]
-    path_csv_series_s = (path_tstoy + 'SeparateSeries/tstoy' + config['tstoy'] +
-        '_series_' + series_s + '.csv'
-    )
+    if config['tstoy']=='09':
+        path_csv_series_s = (path_tstoy + 'SeparateSisp_tr/sisp_' + series_s + '.csv')
+    else:
+        path_csv_series_s = (path_tstoy + 'SeparateSeries/tstoy' + config['tstoy'] +
+            '_series_' + series_s + '.csv'
+        )
+    
     dat_s = pd.read_csv(
         path_csv_series_s,
         header=0,
-        dtype={
-            'ts':str,
-            'twd':float,
-            'pr':float,
-            'at':float,
-            'ws':float,
-            'dp':float,
-            'sr':float,
-            'lr':float,
-            'vp':float,
-            'sw':float,
-            'dy':float,
-            'el':float
-        }
+        dtype=dtype_dict
     )
     y_s_full = dat_s['twd'][ind_t]
     x_s_full = dat_s[covvec].iloc[ind_t,:]
@@ -124,7 +141,7 @@ for s in range(1,nb_series):
     y_full = np.concatenate((y_full, y_s_full), axis=0)
 
 # Normalize features after stacking all series
-# x_full shape: (nb_series, nT, nb_cov)
+# x_full.shape: (nb_series, nT, nb_cov)
 mean_all = np.mean(x_full, axis=(0,1))  # mean over all series and time
 std_all = np.std(x_full, axis=(0,1))
 x_full = (x_full - mean_all) / std_all
@@ -164,36 +181,36 @@ yfull = torch.tensor(y_full, dtype=torch.float32)
 
 
 
-#%% setup static input features (z)
-zvec = config['zvec']
-z_size = len(zvec) # size of z vector = nb static input features
-z_fc_size = int(config['z_fc_size']) # size of z vector
+# #%% setup static input features (z)
+# zvec = config['zvec']
+# z_size = len(zvec) # size of z vector = nb static input features
+# z_fc_size = int(config['z_fc_size']) # size of z vector
 
-path_csv_static = (
-    path_tstoy + 'tstoy' + config['tstoy'] + '_staticcov.csv'
-)
-dat_static = pd.read_csv(
-    path_csv_static,
-    header=0,
-    dtype={
-        'id':str,   # id_sisp
-        'ea':float, # mch_easting
-        'no':float, # mch_northing
-        'el':float  # mch_elevation
-    }
-)
+# path_csv_static = (
+#     path_tstoy + 'tstoy' + config['tstoy'] + '_staticcov.csv'
+# )
+# dat_static = pd.read_csv(
+#     path_csv_static,
+#     header=0,
+#     dtype={
+#         'id':str,   # id_sisp
+#         'ea':float, # mch_easting
+#         'no':float, # mch_northing
+#         'el':float  # mch_elevation
+#     }
+# )
 
-zmat = dat_static[dat_static['id'].isin(seriesvec)] # subset series
-zmat = zmat[zvec] # keep user-supplied static features
+# zmat = dat_static[dat_static['id'].isin(seriesvec)] # subset series
+# zmat = zmat[zvec] # keep user-supplied static features
 
-mean_z = np.mean(zmat, axis=0) # mean over series
-std_z = np.std(zmat, axis=0) # sd over series
-zmat = (zmat - mean_z) / std_z # normalize static features, overwrite
+# mean_z = np.mean(zmat, axis=0) # mean over series
+# std_z = np.std(zmat, axis=0) # sd over series
+# zmat = (zmat - mean_z) / std_z # normalize static features, overwrite
 
-# zmat.shape # nb_series, z_size
+# # zmat.shape # nb_series, z_size
 
-zb = torch.tensor(zmat.values, dtype=torch.float32, device=device)
-# zb.shape # nb_series, z_size
+# zb = torch.tensor(zmat.values, dtype=torch.float32, device=device)
+# # zb.shape # nb_series, z_size
 
 
 
@@ -205,7 +222,8 @@ nb_layers = config['nb_layers']
 
 if config['actout']=='ReLU':
     class Model_LSTM(torch.nn.Module):
-        def __init__(self, input_size, d_hidden, num_layers, output_size, z_size, z_fc_size):
+        # def __init__(self, input_size, d_hidden, num_layers, output_size, z_size, z_fc_size):
+        def __init__(self, input_size, d_hidden, num_layers, output_size):
             super().__init__()
             self.d_hidden = d_hidden
             self.num_layers = num_layers
@@ -217,21 +235,26 @@ if config['actout']=='ReLU':
             )
             # self.drop = torch.nn.Dropout(p=0.5)
             self.linear = torch.nn.Linear(
-                in_features=d_hidden + z_fc_size,
+                # in_features=d_hidden + z_fc_size,
+                in_features=d_hidden,
                 out_features=output_size
             )
-            self.z_fc = torch.nn.Linear(z_size, z_fc_size)
+            # self.z_fc = torch.nn.Linear(z_size, z_fc_size)
+            # self.z_act = torch.nn.Tanh()
             self.actout = torch.nn.ReLU()
-            self.z_act = torch.nn.Tanh()
         
-        def forward(self, x, z, hidden=None):
+        # def forward(self, x, z, hidden=None):
+        def forward(self, x, hidden=None):
             if hidden is None:
                 hidden = self.get_hidden(x)
-            x_lstm, hidden = self.lstm(x, hidden)
-            z_fc_out = self.z_act(self.z_fc(z)).unsqueeze(0).expand(x_lstm.shape[0], -1)  # shape: (seq_len, z_fc_size)
-            x_concat = torch.cat([x_lstm.squeeze(0), z_fc_out], dim=1) # shape: (seq_len, d_hidden + z_fc_size)
-            x_out = self.actout(self.linear(x_concat))
-            return x_out, hidden
+            # x_lstm, hidden = self.lstm(x, hidden)
+            # z_fc_out = self.z_act(self.z_fc(z)).unsqueeze(0).expand(x_lstm.shape[0], -1) # shape: (seq_len, z_fc_size)
+            # x_concat = torch.cat([x_lstm.squeeze(0), z_fc_out], dim=1) # shape: (seq_len, d_hidden + z_fc_size)
+            # x_out = self.actout(self.linear(x_concat))
+            # return x_out, hidden
+            x, hidden = self.lstm(x, hidden)
+            x = self.actout(self.linear(x))
+            return x, hidden
         
         def get_hidden(self, x):
             # second axis = batch size, i.e. x.shape[0] when batch_first=True
@@ -252,7 +275,8 @@ if config['actout']=='ReLU':
             return hidden
 elif config['actout']=='Softplus':
     class Model_LSTM(torch.nn.Module):
-        def __init__(self, input_size, d_hidden, num_layers, output_size, z_size, z_fc_size):
+        # def __init__(self, input_size, d_hidden, num_layers, output_size, z_size, z_fc_size):
+        def __init__(self, input_size, d_hidden, num_layers, output_size):
             super().__init__()
             self.d_hidden = d_hidden
             self.num_layers = num_layers
@@ -263,21 +287,26 @@ elif config['actout']=='Softplus':
                 batch_first=True
             )
             self.linear = torch.nn.Linear(
-                in_features=d_hidden + z_fc_size,
+                # in_features=d_hidden + z_fc_size,
+                in_features=d_hidden,
                 out_features=output_size
             )
-            self.z_fc = torch.nn.Linear(z_size, z_fc_size)
-            self.z_act = torch.nn.Tanh()
+            # self.z_fc = torch.nn.Linear(z_size, z_fc_size)
+            # self.z_act = torch.nn.Tanh()
             self.actout = torch.nn.Softplus()
         
-        def forward(self, x, z, hidden=None):
+        # def forward(self, x, z, hidden=None):
+        def forward(self, x, hidden=None):
             if hidden is None:
                 hidden = self.get_hidden(x)
-            x_lstm, hidden = self.lstm(x, hidden)
-            z_fc_out = self.z_act(self.z_fc(z)).unsqueeze(0).expand(x_lstm.shape[0], -1)  # shape: (seq_len, z_fc_size)
-            x_concat = torch.cat([x_lstm.squeeze(0), z_fc_out], dim=1) # shape: (seq_len, d_hidden + z_fc_size)
-            x_out = self.actout(self.linear(x_concat))
-            return x_out, hidden
+            # x_lstm, hidden = self.lstm(x, hidden)
+            # z_fc_out = self.z_act(self.z_fc(z)).unsqueeze(0).expand(x_lstm.shape[0], -1)  # shape: (seq_len, z_fc_size)
+            # x_concat = torch.cat([x_lstm.squeeze(0), z_fc_out], dim=1) # shape: (seq_len, d_hidden + z_fc_size)
+            # x_out = self.actout(self.linear(x_concat))
+            # return x_out, hidden
+            x, hidden = self.lstm(x, hidden)
+            x = self.actout(self.linear(x))
+            return x, hidden
         
         def get_hidden(self, x):
             # second axis = batch size, i.e. x.shape[0] when batch_first=True
@@ -298,7 +327,8 @@ elif config['actout']=='Softplus':
             return hidden
 elif config['actout']=='Sigmoid':
     class Model_LSTM(torch.nn.Module):
-        def __init__(self, input_size, d_hidden, num_layers, output_size, z_size, z_fc_size):
+        # def __init__(self, input_size, d_hidden, num_layers, output_size, z_size, z_fc_size):
+        def __init__(self, input_size, d_hidden, num_layers, output_size):
             super().__init__()
             self.d_hidden = d_hidden
             self.num_layers = num_layers
@@ -309,22 +339,26 @@ elif config['actout']=='Sigmoid':
                 batch_first=True
             )
             self.linear = torch.nn.Linear(
-                in_features=d_hidden + z_fc_size,
+                # in_features=d_hidden + z_fc_size,
+                in_features=d_hidden,
                 out_features=output_size
             )
-            self.z_fc = torch.nn.Linear(z_size, z_fc_size)
+            # self.z_fc = torch.nn.Linear(z_size, z_fc_size)
+            # self.z_act = torch.nn.Tanh()
             self.actout = torch.nn.Sigmoid()
-            self.z_act = torch.nn.Tanh()
         
-        def forward(self, x, z, hidden=None):
+        # def forward(self, x, z, hidden=None):
+        def forward(self, x, hidden=None):
             if hidden is None:
                 hidden = self.get_hidden(x)
-            x_lstm, hidden = self.lstm(x, hidden)
-            z_fc_out = self.z_act(self.z_fc(z)).unsqueeze(0).expand(x_lstm.shape[0], -1)  # shape: (seq_len, z_fc_size)
-            # Concatenate z_fc_out to each time step in x_lstm
-            x_concat = torch.cat([x_lstm.squeeze(0), z_fc_out], dim=1) # shape: (seq_len, d_hidden + z_fc_size)
-            x_out = self.actout(self.linear(x_concat))
-            return x_out, hidden
+            # x_lstm, hidden = self.lstm(x, hidden)
+            # z_fc_out = self.z_act(self.z_fc(z)).unsqueeze(0).expand(x_lstm.shape[0], -1)  # shape: (seq_len, z_fc_size)
+            # x_concat = torch.cat([x_lstm.squeeze(0), z_fc_out], dim=1) # shape: (seq_len, d_hidden + z_fc_size)
+            # x_out = self.actout(self.linear(x_concat))
+            # return x_out, hidden
+            x, hidden = self.lstm(x, hidden)
+            x = self.actout(self.linear(x))
+            return x, hidden
         
         def get_hidden(self, x):
             hidden = (
@@ -358,15 +392,23 @@ tgen = torch.Generator(device=device).manual_seed(config['torch_seed'])
 # for param_tensor in model.state_dict():
 #     print(param_tensor, "\t", model.state_dict()[param_tensor].size())
 
+# state_dict_inirand = OrderedDict({
+#     'lstm.weight_ih_l0': torch.randn(4*h_size,i_size,device=device,generator=tgen),
+#     'lstm.weight_hh_l0': torch.randn(4*h_size,h_size,device=device,generator=tgen),
+#     'lstm.bias_ih_l0': torch.randn(4*h_size,device=device,generator=tgen),
+#     'lstm.bias_hh_l0': torch.randn(4*h_size,device=device,generator=tgen),
+#     'linear.weight': torch.randn(o_size,h_size+z_fc_size,device=device,generator=tgen),
+#     'linear.bias': torch.randn(o_size,device=device,generator=tgen),
+#     'z_fc.weight': torch.randn(z_fc_size,z_size,device=device,generator=tgen),
+#     'z_fc.bias': torch.randn(z_fc_size,device=device,generator=tgen)
+# })
 state_dict_inirand = OrderedDict({
-    'lstm.weight_ih_l0': torch.randn(4*h_size,i_size,device=device,generator=tgen),
-    'lstm.weight_hh_l0': torch.randn(4*h_size,h_size,device=device,generator=tgen),
-    'lstm.bias_ih_l0': torch.randn(4*h_size,device=device,generator=tgen),
-    'lstm.bias_hh_l0': torch.randn(4*h_size,device=device,generator=tgen),
-    'linear.weight': torch.randn(o_size,h_size+z_fc_size,device=device,generator=tgen),
-    'linear.bias': torch.randn(o_size,device=device,generator=tgen),
-    'z_fc.weight': torch.randn(z_fc_size,z_size,device=device,generator=tgen),
-    'z_fc.bias': torch.randn(z_fc_size,device=device,generator=tgen)
+    'lstm.weight_ih_l0': torch.randn(4*h_size, i_size, device=device,generator=tgen),
+    'lstm.weight_hh_l0': torch.randn(4*h_size, h_size, device=device,generator=tgen),
+    'lstm.bias_ih_l0': torch.randn(4*h_size, device=device,generator=tgen),
+    'lstm.bias_hh_l0': torch.randn(4*h_size, device=device,generator=tgen),
+    'linear.weight': torch.randn(o_size, h_size, device=device,generator=tgen),
+    'linear.bias': torch.randn(o_size, device=device,generator=tgen)
 })
 # print(state_dict_inirand['linear.bias'])
 # print(model.state_dict()['linear.bias'])
@@ -410,6 +452,7 @@ ind_hor = -1 # v0.4.2: only last obs
 # ^ v0.4.2: hor fixed to 1, only last obs of each batch contributes to loss
 # ^ indices of obs contributing to loss eval within each batch
 
+# TODO: add time stamp to checkpoint and check here whether existing ones to re-start from
 path_ckpt = config['path_checkpointdir'] + '/' + config['prefixoutput']
 step_ckpt = config['step_ckpt'] # 10
 # ^ print and record tr/va loss every maxepoch/step_ckpt
@@ -431,17 +474,9 @@ b_nb = int(nT - b_len + 1) # int(nT_tr - b_len + 1)
 # nb_batches = int((nb_series-1)*b_nb)
 # ^ nb of CV tr batches, with 1 series left for each fold
 
-# nb_param = 4*h_size*i_size + 4*h_size*h_size + 4*h_size*2 + o_size*(h_size+1)
-nb_param = 4*h_size*i_size + 4*h_size*h_size + 4*h_size*2 + o_size*(h_size+z_fc_size+1) + z_fc_size*z_size + z_fc_size
+nb_param = 4*h_size*i_size + 4*h_size*h_size + 4*h_size*2 + o_size*(h_size+1)
+# nb_param = 4*h_size*i_size + 4*h_size*h_size + 4*h_size*2 + o_size*(h_size+z_fc_size+1) + z_fc_size*z_size + z_fc_size
 nb_obs = nb_series*nT # 
-
-# ind_tr = range(nb_batches) # index tr batches in xb/yb
-# ind_va = range(b_nb) # index tr batches in xb_i/yb_i
-
-# ind_va_i = list(range(b_len-1,nT)) # index for time points after burn-in
-
-# nb_tr_loss = nb_batches
-# nb_va_loss = b_nb
 
 print('Number of parameters =',nb_param)
 print('Total (potential) number of observations in trva =',nb_obs,'\n')
@@ -471,8 +506,8 @@ for i in range(nb_series): # i index identifies held-out series
     range_series = list(range(nb_series))
     del range_series[i] # excl i from range_series
     
-    # model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
-    model = Model_LSTM(i_size, h_size, nb_layers, o_size, z_size, z_fc_size) # instantiate
+    model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
+    # model = Model_LSTM(i_size, h_size, nb_layers, o_size, z_size, z_fc_size) # instantiate
     # model.train() # print(model)
     
     # model.load_state_dict(state_dict_inirand, strict=False)
@@ -484,7 +519,7 @@ for i in range(nb_series): # i index identifies held-out series
         print("  Unexpected keys:", missing_unexpected.unexpected_keys)
     
     # ^ <All keys matched successfully> = ok
-        
+            
     if optim=='RMSprop':
         optimizer = torch.optim.RMSprop(
             model.parameters(),
@@ -523,7 +558,7 @@ for i in range(nb_series): # i index identifies held-out series
         step_size=step_size, # 
         gamma=float(config['sch_gamma'])
     )
-    
+        
     nb_batches = int((nb_series-1)*b_nb) # reset for every fold
     xb = torch.empty(size=(nb_batches, b_len, nb_cov))
     yb = torch.empty(size=(nb_batches, b_len))
@@ -590,14 +625,12 @@ for i in range(nb_series): # i index identifies held-out series
         ind_tr = ind_tr_sub # overwrite ind_tr with subsampled indices
         nb_batches = len(ind_tr) # overwrite nb_batches with subsampled number of batches
     
-    
     print('Number of tr loss contributions =',nb_batches)
     print('Number of va loss contributions =',nb_batches_i)
     
     ind_tr_i = range(nb_batches) # index tr batches in xb/yb
     ind_va_i = range(nb_batches_i) # index va batches in xb_i/yb_i
     # ind_va_i = range(b_nb) # index tr batches in xb_i/yb_i
-    
     
     # optim
     model.train()
@@ -614,9 +647,10 @@ for i in range(nb_series): # i index identifies held-out series
         loss_va = 0.0 # record va loss
         
         for b in ind_tr_i: # loop over CV tr batches
-            zb_b = zb[int(whichseries[b]), :] # static cov for series b
-            fwdpass = model(xb[b,:,:], zb_b, (h0,c0)) # from ini
-            y_pred = fwdpass[0][-len_reg:,:] # v0.4.2
+            # zb_b = zb[int(whichseries[b]), :] # static cov for series b
+            # fwdpass = model(xb[b,:,:], zb_b, (h0,c0)) # from ini
+            fwdpass = model(xb[b,:,:], (h0,c0)) # from ini
+            y_pred = fwdpass[0][-len_reg:,:]
             lap_reg = torch.norm(torch.matmul(lap, y_pred),1) # sum abs diff
             y_b_tmp = yb[b,ind_hor].reshape(-1,1)
             y_pred = y_pred[ind_hor].reshape(-1,1)
@@ -627,13 +661,14 @@ for i in range(nb_series): # i index identifies held-out series
         if epoch%(maxepoch//step_ckpt)==(maxepoch//step_ckpt-1):
             with torch.no_grad():
                 for b in ind_va_i: # loop over va batches (s and t)
-                    zb_b = zb[int(whichseries_i[b]), :] # static cov for series b
-                    fwdpass = model(xb_i[b,:,:], zb_b, (h0,c0)) # from ini
+                    # zb_b = zb[int(whichseries_i[b]), :] # static cov for series b
+                    # fwdpass = model(xb_i[b,:,:], zb_b, (h0,c0)) # from ini
+                    fwdpass = model(xb_i[b,:,:], (h0,c0)) # from ini
                     y_pred = fwdpass[0][ind_hor].reshape(-1,1) # horizon obs
                     loss_va += loss_fn(y_pred, yb_i[b,ind_hor].reshape(-1,1)).item()
             
-            loss_tr = loss_tr/nb_batches # sum squared/absolute errors -> MSE/MAE
-            loss_va = loss_va/nb_batches_i # sum squared/absolute errors -> MSE/MAE
+            loss_tr = loss_tr/nb_batches # sum sq/abs errors -> MSE/MAE
+            loss_va = loss_va/nb_batches_i # sum sq/abs errors -> MSE/MAE
             # save checkpoint for best intermediate fit
             if not lossvec_va: # check if empty
                 torch.save(model.state_dict(), path_best_ckpt)
@@ -656,7 +691,7 @@ for i in range(nb_series): # i index identifies held-out series
     wallclock1 = time.time() # in seconds
     print('while loop took',round((wallclock1 - wallclock0)/60,1),'m') # \n
     print('Smallest va loss at epoch =',epoch_best) # ,'\n'
-    
+
     # # save estimated parameters (checkpoint) at max epoch
     # torch.save(model.state_dict(), path_ckpt + '_ckpt_' + str(epoch) + '.pt')
     
@@ -675,7 +710,7 @@ for i in range(nb_series): # i index identifies held-out series
     plt.legend(loc='upper right')
     plt.title('tr and va '+config['loss']+' loss over all series, CV fold '+str(i))
     # plt.savefig(path_out + '_loss.pdf')
-    plt.savefig(path_out_cv + 'fold' + str(i) + '_loss.pdf')
+    plt.savefig(path_out_cv + 'fold' + str(i) + '_loss.pdf', bbox_inches='tight')
     plt.close()
     
     # assuming hor=1, so one obs per tr batch
@@ -683,14 +718,16 @@ for i in range(nb_series): # i index identifies held-out series
     ytr_pred = np.zeros(nb_batches)
     if device.type=='cuda': # need to transfer from GPU to CPU for np
         for b in ind_tr_i: # loop over tr batches (s and t)
-            zb_b = zb[int(whichseries[b]), :] # static covariates for series b
-            fwdpass_b = model(xb[b,:,:], zb_b, (h0,c0)) # from ini
+            # zb_b = zb[int(whichseries[b]), :] # static covariates for series b
+            # fwdpass_b = model(xb[b,:,:], zb_b, (h0,c0)) # from ini
+            fwdpass_b = model(xb[b,:,:], (h0,c0)) # from ini
             ytr_pred[b] = fwdpass_b[0][ind_hor].cpu().detach().numpy().item()
             ytr[b] = yb[b,ind_hor].reshape(-1,1).cpu().detach().numpy().item()
     else: # then device.type='cpu'
         for b in ind_tr_i: # loop over tr batches (s and t)
-            zb_b = zb[int(whichseries[b]), :] # static covariates for series b
-            fwdpass_b = model(xb[b,:,:], zb_b, (h0,c0)) # from ini
+            # zb_b = zb[int(whichseries[b]), :] # static covariates for series b
+            # fwdpass_b = model(xb[b,:,:], zb_b, (h0,c0)) # from ini
+            fwdpass_b = model(xb[b,:,:], (h0,c0)) # from ini
             ytr_pred[b] = fwdpass_b[0][ind_hor].detach().numpy().item()
             ytr[b] = yb[b,ind_hor].reshape(-1,1).detach().numpy().item()
     
@@ -701,18 +738,28 @@ for i in range(nb_series): # i index identifies held-out series
     r2_tr[i] = r2_score(ytr, ytr_pred)
     MedAE_tr[i] = median_absolute_error(ytr, ytr_pred)
     
+    # 1-(((ytr-ytr_pred)**2).sum())/(((ytr-np.mean(ytr))**2).sum()) # tr R^2
+    # ((ytr-ytr_pred)**2).mean() # loss_tr
+    # plt.figure(figsize=(10,10))
+    # plt.scatter(ytr_pred, ytr, c=colvec[0])
+    # plt.plot([min(ytr_pred), max(ytr_pred)], [min(ytr_pred), max(ytr_pred)],c='black')
+    # plt.savefig(path_out_cv + 'fold' + str(i) + '_fittedvalues.pdf')
+    # plt.close()
+    
     yva = np.zeros(nb_batches_i) # b_nb
     yva_pred = np.zeros(nb_batches_i) # b_nb
     if device.type=='cuda': # need to transfer from GPU to CPU for np
         for b in ind_va_i: # loop over tr batches (s and t)
-            zb_b = zb[int(whichseries_i[b]), :] # static covariates for series b
-            fwdpass_b = model(xb_i[b,:,:], zb_b, (h0,c0)) # from ini
+            # zb_b = zb[int(whichseries_i[b]), :] # static covariates for series b
+            # fwdpass_b = model(xb_i[b,:,:], zb_b, (h0,c0)) # from ini
+            fwdpass_b = model(xb_i[b,:,:], (h0,c0)) # from ini
             yva_pred[b] = fwdpass_b[0][ind_hor].cpu().detach().numpy().item()
             yva[b] = yb_i[b,ind_hor].reshape(-1,1).cpu().detach().numpy().item()
     else: # then device.type='cpu'
         for b in ind_va_i: # loop over tr batches (s and t)
-            zb_b = zb[int(whichseries_i[b]), :] # static covariates for series b
-            fwdpass_b = model(xb_i[b,:,:], zb_b, (h0,c0)) # from ini
+            # zb_b = zb[int(whichseries_i[b]), :] # static covariates for series b
+            # fwdpass_b = model(xb_i[b,:,:], zb_b, (h0,c0)) # from ini
+            fwdpass_b = model(xb_i[b,:,:], (h0,c0)) # from ini
             yva_pred[b] = fwdpass_b[0][ind_hor].detach().numpy().item()
             yva[b] = yb_i[b,ind_hor].reshape(-1,1).detach().numpy().item()
     
@@ -723,6 +770,14 @@ for i in range(nb_series): # i index identifies held-out series
     r2_va[i] = r2_score(yva, yva_pred)
     MedAE_va[i] = median_absolute_error(yva, yva_pred)
     
+    # 1-(((yva-yva_pred)**2).sum())/(((yva-np.mean(yva))**2).sum()) # va R^2
+    # ((yva-yva_pred)**2).mean() # loss_va
+    # plt.figure(figsize=(10,10))
+    # plt.scatter(yva_pred, yva, c=colvec[1])
+    # plt.plot([0,1], [0,1], c='black')
+    # plt.savefig(path_out_cv + 'fold' + str(i) + '_preds.pdf')
+    # plt.close()
+    
     if device.type=='cuda': # need to transfer from GPU to CPU for np
         y_s = y_s.cpu().detach().numpy()
     else: # then device.type='cpu'
@@ -732,13 +787,15 @@ for i in range(nb_series): # i index identifies held-out series
     yva_predfull = np.zeros(b_nb) # 
     if device.type=='cuda': # need to transfer from GPU to CPU for np
         for b in range(b_nb): # loop over tr batches (s and t)
-            zb_b = zb[int(whichseries_i_full[b]), :] # static cov for series b
-            fwdpass_b = model(xb_i_full[b,:,:], zb_b, (h0,c0)) # from ini
+            # zb_b = zb[int(whichseries_i_full[b]), :] # static cov for series b
+            # fwdpass_b = model(xb_i_full[b,:,:], zb_b, (h0,c0)) # from ini
+            fwdpass_b = model(xb_i_full[b,:,:], (h0,c0)) # from ini
             yva_predfull[b] = fwdpass_b[0][ind_hor].cpu().detach().numpy().item()
     else: # then device.type='cpu'
         for b in range(b_nb): # loop over tr batches (s and t)
-            zb_b = zb[int(whichseries_i_full[b]), :] # static cov for series b
-            fwdpass_b = model(xb_i_full[b,:,:], zb_b, (h0,c0)) # from ini
+            # zb_b = zb[int(whichseries_i_full[b]), :] # static cov for series b
+            # fwdpass_b = model(xb_i_full[b,:,:], zb_b, (h0,c0)) # from ini
+            fwdpass_b = model(xb_i_full[b,:,:], (h0,c0)) # from ini
             yva_predfull[b] = fwdpass_b[0][ind_hor].detach().numpy().item()
     
     ind_va_i_burnin = list(range(b_len-1,nT)) # all time points after burn-in
@@ -746,14 +803,15 @@ for i in range(nb_series): # i index identifies held-out series
     # np.where(~np.isnan(y_s))
     # range(nT)[np.ndarray.tolist(~np.isnan(y_s))]
     
-    plt.figure(figsize=(12,6))
+    # plt.figure(figsize=(12,6))
     # plt.scatter(range(nT), y_s, s=10, c='grey', label='ini') # s=16
     # plt.scatter(ind_va_i_burnin, y_s[ind_va_i_burnin], s=16, c=colvec[1], label='va')
+    plt.figure(figsize=(20,6))
     plt.scatter(range(nT), y_s, s=16, c=colvec[1], label='va')
     plt.plot(ind_va_i_burnin, yva_predfull, linewidth=1, color='black',label='pred')
     plt.legend(loc='upper left')
     plt.title('CV fold '+str(i)+', series ' + seriesvec[i])
-    plt.savefig(path_out_cv + 'fold' + str(i) + '_ts.pdf')
+    plt.savefig(path_out_cv + 'fold' + str(i) + '_ts.pdf', bbox_inches='tight')
     plt.close()
     
     # print('\n')
