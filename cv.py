@@ -1,4 +1,4 @@
-# twdlstm cv v0.6.5
+# twdlstm cv v0.7
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -18,7 +18,7 @@ from collections import OrderedDict # saving/loading model state_dict
 # os.chdir('/mydata/forestcast/william/WP3') # setwd()
 
 # path_config = '/mydata/forestcast/william/WP3/LSTM_runs/configs/config_00.yaml'
-# path_config = '/mydata/forestcast/william/WP3/LSTM_runs/configs/config_113.yaml'
+# path_config = '/mydata/forestcast/william/WP3/LSTM_runs/configs/config_114.yaml'
 path_config = str(sys.argv[1])
 # print(path_config)
 
@@ -45,18 +45,25 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm cv v0.6.5\n')
+print(now_str + ' running twdlstm cv v0.7\n')
 # print('\n')
 
 print('Supplied config:')
 print(path_config+'\n')
 # print('\n')
 
-seriesvec = config['series_trva'] # distinguish from series_te
+serieslist = config['series_cv'] # 
 covvec = config['covvec']
 nT = config['nT'] # time window length, to be split in batches for tr/va
 
-nb_series = len(seriesvec)
+seriesvec = [
+    x
+    for xs in serieslist
+    for x in xs
+] # flattened list, list comprehension is fastest
+
+nb_folds = len(serieslist)
+nb_series = len(seriesvec) # in total, over all folds
 nb_cov = len(covvec)
 
 # Load and stack all series
@@ -486,25 +493,25 @@ print('Total (potential) number of observations in trva =',nb_obs,'\n')
 
 
 
-#%% CV iterations over i index
-bias_tr = np.zeros(nb_series)
-scale_tr = np.zeros(nb_series)
-r_tr = np.zeros(nb_series)
-r2_tr = np.zeros(nb_series)
-MedAE_tr = np.zeros(nb_series)
+#%% CV iterations over i index = folds
+bias_tr = np.zeros(nb_folds)
+scale_tr = np.zeros(nb_folds)
+r_tr = np.zeros(nb_folds)
+r2_tr = np.zeros(nb_folds)
+MedAE_tr = np.zeros(nb_folds)
 
-bias_va = np.zeros(nb_series)
-scale_va = np.zeros(nb_series)
-r_va = np.zeros(nb_series)
-r2_va = np.zeros(nb_series)
-MedAE_va = np.zeros(nb_series)
+bias_va = np.zeros(nb_folds)
+scale_va = np.zeros(nb_folds)
+r_va = np.zeros(nb_folds)
+r2_va = np.zeros(nb_folds)
+MedAE_va = np.zeros(nb_folds)
 
-# i = 0
-for i in range(nb_series): # i index identifies held-out series
-    print('--- optim CV fold',i,'/',nb_series-1,': held-out series =',seriesvec[i])
+for i in range(nb_folds): # i index identifies CV fold for >=1 held-out series
+    # i = 0
+    print('--- optim CV fold',i,'/',nb_folds-1,': held-out series =',serieslist[i])
     path_best_ckpt = path_ckpt+'_ckpt_best_fold'+str(i)+'.pt'
-    range_series = list(range(nb_series))
-    del range_series[i] # excl i from range_series
+    # range_series = list(range(nb_series))
+    # del range_series[i] # excl i from range_series
     
     model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
     # model = Model_LSTM(i_size, h_size, nb_layers, o_size, z_size, z_fc_size) # instantiate
@@ -519,7 +526,7 @@ for i in range(nb_series): # i index identifies held-out series
         print("  Unexpected keys:", missing_unexpected.unexpected_keys)
     
     # ^ <All keys matched successfully> = ok
-            
+    
     if optim=='RMSprop':
         optimizer = torch.optim.RMSprop(
             model.parameters(),
@@ -558,30 +565,44 @@ for i in range(nb_series): # i index identifies held-out series
         step_size=step_size, # 
         gamma=float(config['sch_gamma'])
     )
-        
-    nb_batches = int((nb_series-1)*b_nb) # reset for every fold
+    
+    series_tr = serieslist[:i] + serieslist[i+1:] # excl i from serieslist
+    series_tr = [
+        x
+        for xs in series_tr
+        for x in xs
+    ] # flatten list of lists by list comprehension
+    series_va = serieslist[i] # held-out series for fold i
+    ind_tr = [seriesvec.index(s) for s in series_tr]
+    ind_va = [seriesvec.index(s) for s in series_va]
+      
+    # nb_batches = int((nb_series-1)*b_nb) # reset for every fold
+    nb_batches = int(len(series_tr)*b_nb) # reset for every fold
     xb = torch.empty(size=(nb_batches, b_len, nb_cov))
     yb = torch.empty(size=(nb_batches, b_len))
     whichseries = np.empty(nb_batches)
-    for s in range(len(range_series)): # loop over series in CV tr (dim 0)
-        x_s = torch.select(xfull, dim=0, index=range_series[s])
-        y_s = torch.select(yfull, dim=0, index=range_series[s]) # .reshape(-1,1)
+    # for s in range(len(range_series)): # loop over series in CV tr (dim 0)
+    for s in range(len(series_tr)): # loop over series in CV tr (dim 0)
+        x_s = torch.select(xfull, dim=0, index=ind_tr[s])
+        y_s = torch.select(yfull, dim=0, index=ind_tr[s]) # .reshape(-1,1)
         for t in range(b_nb):
             ind_t = range(t, int(b_len+t)) # overlapping temporal subsets
             xb[t+s*b_nb,:,:] = x_s[ind_t,:]
             yb[t+s*b_nb,:] = y_s[ind_t]
-            whichseries[t+s*b_nb] = range_series[s] # series in CV tr batches
+            whichseries[t+s*b_nb] = series_tr[s] # series in CV tr batches
     
-    xb_i = torch.empty(size=(b_nb, b_len, nb_cov))
-    yb_i = torch.empty(size=(b_nb, b_len))
-    x_s = torch.select(xfull, dim=0, index=i)
-    y_s = torch.select(yfull, dim=0, index=i) # .reshape(-1,1)
-    for t in range(b_nb):
-        ind_t = range(t, int(b_len+t)) # overlapping temporal subsets
-        xb_i[t,:,:] = x_s[ind_t,:]
-        yb_i[t,:] = y_s[ind_t]
-    
-    whichseries_i = np.repeat(i, b_nb) # index of series in CV va batch
+    nb_batches_i = int(len(series_va)*b_nb) # reset for every fold
+    xb_i = torch.empty(size=(nb_batches_i, b_len, nb_cov))
+    yb_i = torch.empty(size=(nb_batches_i, b_len))
+    whichseries_i = np.empty(nb_batches_i)
+    for s in range(len(series_va)): # loop over series in CV va (dim 0)
+        x_s = torch.select(xfull, dim=0, index=ind_va[s])
+        y_s = torch.select(yfull, dim=0, index=ind_va[s]) # .reshape(-1,1)
+        for t in range(b_nb):
+            ind_t = range(t, int(b_len+t)) # overlapping temporal subsets
+            xb_i[t+s*b_nb,:,:] = x_s[ind_t,:]
+            yb_i[t+s*b_nb,:] = y_s[ind_t]
+            whichseries_i[t+s*b_nb] = series_va[s] # series in CV va batches
     
     # xb.shape # CV tr batches
     # yb.shape # CV tr batches
@@ -590,7 +611,7 @@ for i in range(nb_series): # i index identifies held-out series
     # whichseries.shape # CV tr batches
     # whichseries_i.shape # CV va batch
     
-    # deal with nan in response (necessary for tstoy08)
+    # deal with nan in response (necessary for tstoy09)
     # ind_nonan = ~torch.any(yb.isnan(),dim=1) # bad: excl if any nan
     ind_nonan = ~yb[:,ind_hor].isnan() # good: excl if last is nan
     xb = xb[ind_nonan,:,:] # overwrite
@@ -630,7 +651,6 @@ for i in range(nb_series): # i index identifies held-out series
     
     ind_tr_i = range(nb_batches) # index tr batches in xb/yb
     ind_va_i = range(nb_batches_i) # index va batches in xb_i/yb_i
-    # ind_va_i = range(b_nb) # index tr batches in xb_i/yb_i
     
     # optim
     model.train()
@@ -686,12 +706,13 @@ for i in range(nb_series): # i index identifies held-out series
         scheduler.step() # update lr throughout epochs
         
         epoch += 1
-        # end while
+    
+    # end while
     
     wallclock1 = time.time() # in seconds
     print('while loop took',round((wallclock1 - wallclock0)/60,1),'m') # \n
     print('Smallest va loss at epoch =',epoch_best) # ,'\n'
-
+    
     # # save estimated parameters (checkpoint) at max epoch
     # torch.save(model.state_dict(), path_ckpt + '_ckpt_' + str(epoch) + '.pt')
     
@@ -778,49 +799,42 @@ for i in range(nb_series): # i index identifies held-out series
     # plt.savefig(path_out_cv + 'fold' + str(i) + '_preds.pdf')
     # plt.close()
     
-    if device.type=='cuda': # need to transfer from GPU to CPU for np
-        y_s = y_s.cpu().detach().numpy()
-    else: # then device.type='cpu'
-        y_s = y_s.detach().numpy()
-    
     # full held-out time series pred
-    yva_predfull = np.zeros(b_nb) # 
-    if device.type=='cuda': # need to transfer from GPU to CPU for np
-        for b in range(b_nb): # loop over tr batches (s and t)
-            # zb_b = zb[int(whichseries_i_full[b]), :] # static cov for series b
-            # fwdpass_b = model(xb_i_full[b,:,:], zb_b, (h0,c0)) # from ini
-            fwdpass_b = model(xb_i_full[b,:,:], (h0,c0)) # from ini
-            yva_predfull[b] = fwdpass_b[0][ind_hor].cpu().detach().numpy().item()
-    else: # then device.type='cpu'
-        for b in range(b_nb): # loop over tr batches (s and t)
-            # zb_b = zb[int(whichseries_i_full[b]), :] # static cov for series b
-            # fwdpass_b = model(xb_i_full[b,:,:], zb_b, (h0,c0)) # from ini
-            fwdpass_b = model(xb_i_full[b,:,:], (h0,c0)) # from ini
-            yva_predfull[b] = fwdpass_b[0][ind_hor].detach().numpy().item()
-    
     ind_va_i_burnin = list(range(b_len-1,nT)) # all time points after burn-in
-    # np.ndarray.tolist(~np.isnan(y_s))
-    # np.where(~np.isnan(y_s))
-    # range(nT)[np.ndarray.tolist(~np.isnan(y_s))]
-    
-    # plt.figure(figsize=(12,6))
-    # plt.scatter(range(nT), y_s, s=10, c='grey', label='ini') # s=16
-    # plt.scatter(ind_va_i_burnin, y_s[ind_va_i_burnin], s=16, c=colvec[1], label='va')
-    plt.figure(figsize=(20,6))
-    plt.scatter(range(nT), y_s, s=16, c=colvec[1], label='va')
-    plt.plot(ind_va_i_burnin, yva_predfull, linewidth=1, color='black',label='pred')
-    plt.legend(loc='upper left')
-    plt.title('CV fold '+str(i)+', series ' + seriesvec[i])
-    plt.savefig(path_out_cv + 'fold' + str(i) + '_ts.pdf', bbox_inches='tight')
-    plt.close()
-    
-    # print('\n')
+    for s in range(len(series_va)): # loop over series in CV va (dim 0)
+        yva_predfull = np.zeros(b_nb) #
+        x_s = torch.select(xfull, dim=0, index=ind_va[s])
+        y_s = torch.select(yfull, dim=0, index=ind_va[s]) # .reshape(-1,1)
+        if device.type=='cuda': # need to transfer from GPU to CPU for np
+            y_s = y_s.cpu().detach().numpy()
+            for b in range(b_nb): # loop over tr batches (s and t)
+                # zb_b = zb[int(whichseries_i_full[b]), :] # static cov for series b
+                # fwdpass_b = model(xb_i_full[b,:,:], zb_b, (h0,c0)) # from ini
+                ind_t = range(b, int(b_len+b)) # overlapping temporal subsets
+                fwdpass_b = model(x_s[ind_t,:], (h0,c0)) # from ini
+                yva_predfull[b] = fwdpass_b[0][ind_hor].cpu().detach().numpy().item()
+        else: # then device.type='cpu'
+            y_s = y_s.detach().numpy()
+            for b in range(b_nb): # loop over tr batches (s and t)
+                # zb_b = zb[int(whichseries_i_full[b]), :] # static cov for series b
+                # fwdpass_b = model(xb_i_full[b,:,:], zb_b, (h0,c0)) # from ini
+                ind_t = range(b, int(b_len+b)) # overlapping temporal subsets
+                fwdpass_b = model(x_s[ind_t,:], (h0,c0)) # from ini
+                yva_predfull[b] = fwdpass_b[0][ind_hor].detach().numpy().item()
+        
+        plt.figure(figsize=(20,6))
+        plt.scatter(range(nT), y_s, s=16, c=colvec[1], label='va')
+        plt.plot(ind_va_i_burnin, yva_predfull, linewidth=1, color='black',label='pred')
+        plt.legend(loc='upper left')
+        plt.title('CV fold ' + str(i) + ', series ' + serieslist[i][s])
+        plt.savefig(path_out_cv + 'fold' + str(i) + '_ts_' + serieslist[i][s] + '.pdf', bbox_inches='tight')
+        plt.close()
 
-# end for i in range(nb_series)
+# end for i in range(nb_folds)
 
 print('\n')
 
-for i in range(nb_series): # i index identifies held-out series
+for i in range(nb_folds): # i index identifies held-out series
     print('--- CV fold',i) # 
     print('* tr metrics:') # 
     print('  - mean(obs)-mean(pred) =',round(bias_tr[i],4)) # diff of means
@@ -846,5 +860,11 @@ nowagain = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_again_str = nowagain.strftime("%Y-%m-%d %H:%M:%S")
 print(now_again_str)
 print('done')
+
+# source /myhome/.bashrc
+# conda activate mytorch
+# cd /mydata/forestcast/william/WP3
+# run="114"
+# nohup python -u src/twdlstm/cv.py LSTM_runs/configs/config_"$run".yaml > LSTM_runs/logs/log_cv_"$run".txt &
 
 # END twdlstm cv

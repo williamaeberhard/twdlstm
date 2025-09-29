@@ -6,7 +6,8 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 
 ### Version history
 
-This is twdlstm version 0.6.5. Change log:
+This is twdlstm version 0.7. Change log:
+* v0.7: cv.py, k-fold CV rather than leave-one-series-out. Folds are specified in config.yaml in new series_cv argument (series_trva only for train.py now), as a list of lists.
 * v0.6.5: cv.py, commented-out everything related to static input features (z), need to add option to disable it in future versions to check, e.g., elevation, helps CV pred.
 * v0.6.4:
   - train.py, cv.py, pred.py: added static input features (z), passed to a fully connected layer, a tanh activation function, and then concatenated to the LSTM hidden state before the last linear layer and output activation.
