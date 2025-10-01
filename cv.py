@@ -486,7 +486,7 @@ nb_param = 4*h_size*i_size + 4*h_size*h_size + 4*h_size*2 + o_size*(h_size+1)
 nb_obs = nb_series*nT # 
 
 print('Number of parameters =',nb_param)
-print('Total (potential) number of observations in trva =',nb_obs,'\n')
+print('Total (potential) number of observations over all folds =',nb_obs,'\n')
 # print('Number of CV tr loss contributions =',nb_batches)
 # print('Number of CV va loss contributions =',nb_va_loss,'\n')
 # print('\n')
