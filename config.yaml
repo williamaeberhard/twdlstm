@@ -1,86 +1,44 @@
-# Configuration for twdlstm v0.6.3
+# Configuration for twdlstm v0.7.1
 
 path_data: '/mydata/forestcast/william/WP3/DataProcessed'
 path_outputdir: '/mydata/forestcast/william/WP3/LSTM_runs/outputs'
 path_checkpointdir: '/mydata/forestcast/william/WP3/LSTM_runs/checkpoints'
+path_twdlstm: '/mydata/forestcast/william/WP3/src/twdlstm'
 
 prefixoutput: '00' #
 
-tstoy: '08'
+tstoy: '09'
 # ^ '04' for tstoy04, '05' for tstoy05, etc.
 
-# * tstoy05 series (01-20) by species (unique by site)
-#   - Picea abies (5):
-#     "05", "07", "08", "15", "19"
-#   - Fagus sylvatica (7):
-#     "01", "06", "11", "13", "17", "18", "20"
-#   - Quercus petraea (2):
-#     "02", "12"
-#   - Pinus sylvestris (3):
-#     "09", "14", "16"
-#   - Carpinus betulus (1):
-#     "03"
-#   - Corylus avellana (1):
-#     "04"
-#   - Pseudotsuga menziesii (1):
-#     "10"
-# * tstoy05 series that are homogeneous enough by species:
-#   - Picea abies (4):
-#     "05", "07", "15", "19"
-#     after removing
-#     "08"
-#   - Fagus sylvatica (5):
-#     "06", "11", "13", "18", "20"
-#     after removing:
-#     "01", "17"
-#   - Quercus petraea (2):
-#     "02", "12"
-#   - Pinus sylvestris (2):
-#     "09", "14"
-#     after removing:
-#     "16"
-# * tstoy07 series that are homogeneous enough for top 3 species:
-#   - Picea abies (4):
-#     "05", "07", "15", "19"
-#     after removing:
-#     "08"
-#   - Fagus sylvatica (keep all 7):
-#     "01", "06", "11", "13", "17", "18", "20"
-#   - Pinus sylvestris (keep all 3):
-#     "09", "14", "16"
-# * tstoy08 series by main species (among "01"-"80"):
-#   - Pinus_sylvestris (9)
-#     "05", "22", "27", "29", "39", "40", "41", "53", "56"
-#   - Picea_abies (20)
-#     "02", "08", "09", "10", "15", "17", "21", "28", "34", "38", "43", "46",
-#     "52", "59", "61", "63", "65", "67", "70", "73"
-#   - Fagus_sylvatica (17) 
-#     "01", "14", "16", "23", "25", "30", "33", "35", "37", "44", "45", "47",
-#     "50", "54", "72", "75", "78"
+series_cv: [
+  ['048', '037'],
+  ['024', '094', '041'],
+] # tstoy09 2-fold CV, for quick tests
+series_trva: [
+  "004", "005", "008",
+  "001", "002", "013",
+] # tstoy09 small pa+ps subset for quick tests
+series_te: ["004", "008"] # tstoy09 test pa
+# ^ trva for train.py, cv for cv.py, te for test.py
 
-# series_trva: ["05", "22", "27", "29", "39", "40", "41", "53", "56", # tstoy08 ps
-#   "02", "08", "09", "10", "15", "17", "21", "28", "34", "38",
-#   "43", "46", "52", "59", "61", "63", "65", "67", "70", "73", # tstoy08 pa
-#   "01", "14", "16", "23", "25", "30", "33", "35", "37", "44",
-#   "45", "47", "50", "54", "72", "75", "78"] # tstoy08 fs
-series_trva: ["08", "09"] # tstoy08 pa small subset
-series_te: ["02"] # tstoy08 first pa
-
-# ^ trva (tr and va) used by train.py, te only used by test.py
-
-date_t0: '2018-01-01' # time points are daily
-nT: 200 # 1826 # time window length, obs split in batches, starts from date_t0
-prop_va: 0.01 # 0.01, 0.2 # prop of data batches held-out for va set (train.py)
+# date_t0: '2018-01-01' # time points are daily
+date_t0: '2021-04-01 00:00:00' # tstoy09: time points are 2-hourly
+nT: 500 # 1826 # time window length, obs split in batches, starts from date_t0
+prop_va: 0.1 # 0.01, 0.2 # prop of data batches held-out for va set (train.py)
 prop_tr_sub: 0.5 # 0.5, 1.0 # prop of tr subsampled batches (train.py)
 srs_seed: 1234 # seed for simple random sampling for va subset
 
-
-
-batch_len: 5 # length of batches, both for tr and va
+batch_len: 10 # length of batches, both for tr and va
 
 # covvec: ['pr', 'at', 'ws', 'dp', 'sr', 'lr'] # tstoy04 all
 # covvec: ['pr', 'at', 'ws', 'dp', 'sr', 'lr', 'vp', 'sw', 'dy'] # tstoy08 all
-covvec: ['sw','vp'] # tstoy08 good small subset
+covvec: ['vp','at'] # tstoy09 good subset
+
+# zvec: ['el'] # tstoy08 quick check
+# zvec: ['ea', 'no', 'el'] # tstoy08 all
+# ^ static input features (z)
+# z_fc_size: 1 # 1 good enough?
+# ^ size of fully connected layer for z
 
 h_size: 16 # 8,16,32,64 <= 32 generally good
 o_size: 1 # 1
@@ -104,11 +62,11 @@ loss: 'MSE' # 'MSE', 'MAE'
 optim: 'RMSprop' # 'RMSprop', 'Adam', 'AdamW', 'RAdam'
 learning_rate: 1e-2 # 1e-2 is good, 1e-1 better if scheduling
 sch_rel_step_size: 2 # shrink lr every int(maxepoch/sch_rel_step_size) # 2, 3
-sch_gamma: 0.1 # factor shrinking lr # 0.1, 0.5
-alphal2: 0.1 # L2 pen (weight decay) in RMSprop # 0.0, 0.05, 0.1, 0.5, 0.8
+sch_gamma: 1.0 # factor shrinking lr # 0.1, 0.5
+alphal2: 0.0 # L2 pen (weight decay) in RMSprop # 0.0, 0.05, 0.1, 0.5, 0.8
 momentum: 0.5 # 0.8 # momentum in RMSprop # 0.0, 0.5, 0.8
 
 # run from /mydata/forestcast/william/WP3:
-# python src/twdlstm/train.py LSTM_runs/configs/config_00.yaml > LSTM_runs/logs/log_trva_00.txt
-# python src/twdlstm/cv.py LSTM_runs/configs/config_00.yaml > LSTM_runs/logs/log_cv_00.txt
-# python src/twdlstm/test.py LSTM_runs/configs/config_00.yaml > LSTM_runs/logs/log_te_00.txt
+# python -u src/twdlstm/train.py LSTM_runs/configs/config_00.yaml > LSTM_runs/logs/log_trva_00.txt
+# python -u src/twdlstm/cv.py LSTM_runs/configs/config_00.yaml > LSTM_runs/logs/log_cv_00.txt
+# python -u src/twdlstm/test.py LSTM_runs/configs/config_00.yaml > LSTM_runs/logs/log_te_00.txt
