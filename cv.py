@@ -45,7 +45,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm cv v0.7\n')
+print(now_str + ' running twdlstm cv v0.7.1\n')
 # print('\n')
 
 print('Supplied config:')
@@ -701,6 +701,13 @@ print('\n')
 nowagain = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_again_str = nowagain.strftime("%Y-%m-%d %H:%M:%S")
 print(now_again_str)
+duration = (nowagain-now).total_seconds()
+print('Time difference of',
+    int(divmod(duration,86400)[0]),'day',
+    int(divmod(duration,3600)[0]),'hours',
+    int(divmod(duration,60)[0]),'min',
+    int(duration % 60),'sec'
+)
 print('done')
 
 # source /myhome/.bashrc
