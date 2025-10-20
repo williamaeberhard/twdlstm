@@ -1,4 +1,4 @@
-# Configuration for twdlstm v0.7.1
+# Configuration for twdlstm v0.7.2
 
 path_data: '/mydata/forestcast/william/WP3/DataProcessed'
 path_outputdir: '/mydata/forestcast/william/WP3/LSTM_runs/outputs'
@@ -11,21 +11,20 @@ tstoy: '09'
 # ^ '04' for tstoy04, '05' for tstoy05, etc.
 
 series_cv: [
-  ['048', '037'],
+  ['048', '037', '089'],
   ['024', '094', '041'],
 ] # tstoy09 2-fold CV, for quick tests
 series_trva: [
-  "004", "005", "008",
-  "001", "002", "013",
-] # tstoy09 small pa+ps subset for quick tests
+  '048', '037', '089', '024', '094', '041'
+] # tstoy09 small subset for quick tests
 series_te: ["004", "008"] # tstoy09 test pa
 # ^ trva for train.py, cv for cv.py, te for test.py
 
 # date_t0: '2018-01-01' # time points are daily
 date_t0: '2021-04-01 00:00:00' # tstoy09: time points are 2-hourly
-nT: 500 # 1826 # time window length, obs split in batches, starts from date_t0
-prop_va: 0.1 # 0.01, 0.2 # prop of data batches held-out for va set (train.py)
-prop_tr_sub: 0.5 # 0.5, 1.0 # prop of tr subsampled batches (train.py)
+nT: 6000 # 1826 # time window length, obs split in batches, starts from date_t0
+prop_va: 0.01 # 0.01, 0.2 # prop of data batches held-out for va set (train.py)
+prop_tr_sub: 0.01 # 0.5, 1.0 # prop of tr subsampled batches (train.py)
 srs_seed: 1234 # seed for simple random sampling for va subset
 
 batch_len: 10 # length of batches, both for tr and va
@@ -40,17 +39,20 @@ covvec: ['vp','at'] # tstoy09 good subset
 # z_fc_size: 1 # 1 good enough?
 # ^ size of fully connected layer for z
 
-h_size: 16 # 8,16,32,64 <= 32 generally good
+model: 'LSTM2' # 'LSTM', 'LSTM2'
+d1_size: 16 # LSTM2
+h_size: 16 # 8,16,32,64 <= 16 generally good # LSTM/LSTM2
+d2_size: 4 # LSTM2
 o_size: 1 # 1
 nb_layers: 1 # 1
+p_drop: 0.0 # 0.0 = no dropout # LSTM2
+actout: 'Sigmoid' # 'ReLU', 'Softplus', 'Sigmoid'
+# ^ 'ReLU' and 'Softplus' for tstoy04-tstoy06, 'Sigmoid' for tstoy07-tstoy09
 
 lambda_LaplacianReg: 0.0 # 0.0, 0.01, 0.05
 # ^ multiplies sum abs diff pred within each batch
-len_reg: 2 # 10 # min(10, batch_len/4)
+len_reg: 4 # 10 # min(10, batch_len/4)
 # ^ nb pred that are regularized at end of each batch, must be < batch_len
-
-actout: 'Sigmoid' # 'ReLU', 'Softplus', 'Sigmoid'
-# ^ 'ReLU' and 'Softplus' for tstoy04-tstoy06, 'Sigmoid' for tstoy07-tstoy08
 
 torch_seed: 123 # torch.randn
 
@@ -64,7 +66,7 @@ learning_rate: 1e-2 # 1e-2 is good, 1e-1 better if scheduling
 sch_rel_step_size: 2 # shrink lr every int(maxepoch/sch_rel_step_size) # 2, 3
 sch_gamma: 1.0 # factor shrinking lr # 0.1, 0.5
 alphal2: 0.0 # L2 pen (weight decay) in RMSprop # 0.0, 0.05, 0.1, 0.5, 0.8
-momentum: 0.5 # 0.8 # momentum in RMSprop # 0.0, 0.5, 0.8
+momentum: 0.0 # 0.8 # momentum in RMSprop # 0.0, 0.5, 0.8
 
 # run from /mydata/forestcast/william/WP3:
 # python -u src/twdlstm/train.py LSTM_runs/configs/config_00.yaml > LSTM_runs/logs/log_trva_00.txt

@@ -129,8 +129,8 @@ elif config['actout']=='Sigmoid':
         
         # def forward(self, x, z, hidden=None):
         def forward(self, x, hidden=None):
-            if hidden is None:
-                hidden = self.get_hidden(x)
+            # if hidden is None:
+            #     hidden = self.get_hidden(x)
             # x_lstm, hidden = self.lstm(x, hidden)
             # z_fc_out = self.z_act(self.z_fc(z)).unsqueeze(0).expand(x_lstm.shape[0], -1)  # shape: (seq_len, z_fc_size)
             # x_concat = torch.cat([x_lstm.squeeze(0), z_fc_out], dim=1) # shape: (seq_len, d_hidden + z_fc_size)
@@ -139,23 +139,23 @@ elif config['actout']=='Sigmoid':
             x, hidden = self.lstm(x, hidden)
             x = self.actout(self.linear(x))
             return x, hidden
-        
-        def get_hidden(self, x):
-            hidden = (
-                torch.zeros(
-                    self.num_layers,
-                    x.shape[0],
-                    self.d_hidden,
-                    device=x.device
-                ),
-                torch.zeros(
-                    self.num_layers,
-                    x.shape[0],
-                    self.d_hidden,
-                    device=x.device
-                )
-            )
-            return hidden
+
+# def get_hidden(self, x):
+#     hidden = (
+#         torch.zeros(
+#             self.num_layers,
+#             x.shape[0],
+#             self.d_hidden,
+#             device=x.device
+#         ),
+#         torch.zeros(
+#             self.num_layers,
+#             x.shape[0],
+#             self.d_hidden,
+#             device=x.device
+#         )
+#     )
+#     return hidden
 
 # model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
 # model.train() # print(model)

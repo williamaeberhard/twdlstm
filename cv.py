@@ -1,4 +1,4 @@
-# twdlstm cv v0.7.1
+# twdlstm cv v0.7.2
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -45,7 +45,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm cv v0.7.1\n')
+print(now_str + ' running twdlstm cv v0.7.2\n')
 # print('\n')
 
 print('Supplied config:')
@@ -220,45 +220,58 @@ yfull = torch.tensor(y_full, dtype=torch.float32)
 # # zb.shape # nb_series, z_size
 
 
-#%% LSTM model class
+#%% LSTM model class and initial values
 i_size = nb_cov # xb.shape[2] # nb cols in x = nb input features 
+d1_size = config['d1_size']
 h_size = config['h_size']
+d2_size = config['d2_size']
 o_size = config['o_size']
 nb_layers = config['nb_layers']
+p_drop = config['p_drop']
 
-# exec(open("./model_LSTM.py").read())
-exec(open(config['path_twdlstm'] + '/model_LSTM.py').read())
-
-
-#%% initial values
 h0 = torch.zeros(nb_layers, h_size, device=device) # num_layers, hidden_size
 c0 = torch.zeros(nb_layers, h_size, device=device) # num_layers, hidden_size
 
 # torch.manual_seed(config['seed'])
 tgen = torch.Generator(device=device).manual_seed(config['torch_seed'])
 
+if config['model']=='LSTM':
+    exec(open(config['path_twdlstm'] + '/model_LSTM.py').read())
+    model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
+    state_dict_inirand = OrderedDict({
+        'lstm.weight_ih_l0': torch.randn(4*h_size, i_size, device=device,generator=tgen),
+        'lstm.weight_hh_l0': torch.randn(4*h_size, h_size, device=device,generator=tgen),
+        'lstm.bias_ih_l0': torch.randn(4*h_size, device=device,generator=tgen),
+        'lstm.bias_hh_l0': torch.randn(4*h_size, device=device,generator=tgen),
+        'linear.weight': torch.randn(o_size, h_size, device=device,generator=tgen),
+        'linear.bias': torch.randn(o_size, device=device,generator=tgen)
+    })
+    nb_param = 4*h_size*i_size + 4*h_size*h_size + 4*h_size*2 + o_size*(h_size+1)
+elif config['model']=='LSTM2':
+    exec(open(config['path_twdlstm'] + '/model_LSTM2.py').read())
+    model = Model_LSTM(i_size, d1_size, h_size, d2_size, nb_layers, o_size, p_drop) # instantiate
+    state_dict_inirand = OrderedDict({
+        'fc1.weight': torch.randn(d1_size, i_size, device=device,generator=tgen),
+        'fc1.bias': torch.randn(d1_size, device=device,generator=tgen),
+        'lstm.weight_ih_l0': torch.randn(4*h_size, d1_size, device=device,generator=tgen),
+        'lstm.weight_hh_l0': torch.randn(4*h_size, h_size, device=device,generator=tgen),
+        'lstm.bias_ih_l0': torch.randn(4*h_size, device=device,generator=tgen),
+        'lstm.bias_hh_l0': torch.randn(4*h_size, device=device,generator=tgen),
+        'fc2.weight': torch.randn(d2_size, h_size, device=device,generator=tgen),
+        'fc2.bias': torch.randn(d2_size, device=device,generator=tgen),
+        'linear.weight': torch.randn(o_size, d2_size, device=device,generator=tgen),
+        'linear.bias': torch.randn(o_size, device=device,generator=tgen)
+    })
+    nb_param = d1_size*(i_size+1) + 4*h_size*(d1_size+h_size+2) + d2_size*(h_size+1) + o_size*(d2_size+1)
+
+
+
+# model.train() # print(model)
+
 # # print model's state_dict
 # for param_tensor in model.state_dict():
 #     print(param_tensor, "\t", model.state_dict()[param_tensor].size())
 
-# state_dict_inirand = OrderedDict({
-#     'lstm.weight_ih_l0': torch.randn(4*h_size,i_size,device=device,generator=tgen),
-#     'lstm.weight_hh_l0': torch.randn(4*h_size,h_size,device=device,generator=tgen),
-#     'lstm.bias_ih_l0': torch.randn(4*h_size,device=device,generator=tgen),
-#     'lstm.bias_hh_l0': torch.randn(4*h_size,device=device,generator=tgen),
-#     'linear.weight': torch.randn(o_size,h_size+z_fc_size,device=device,generator=tgen),
-#     'linear.bias': torch.randn(o_size,device=device,generator=tgen),
-#     'z_fc.weight': torch.randn(z_fc_size,z_size,device=device,generator=tgen),
-#     'z_fc.bias': torch.randn(z_fc_size,device=device,generator=tgen)
-# })
-state_dict_inirand = OrderedDict({
-    'lstm.weight_ih_l0': torch.randn(4*h_size, i_size, device=device,generator=tgen),
-    'lstm.weight_hh_l0': torch.randn(4*h_size, h_size, device=device,generator=tgen),
-    'lstm.bias_ih_l0': torch.randn(4*h_size, device=device,generator=tgen),
-    'lstm.bias_hh_l0': torch.randn(4*h_size, device=device,generator=tgen),
-    'linear.weight': torch.randn(o_size, h_size, device=device,generator=tgen),
-    'linear.bias': torch.randn(o_size, device=device,generator=tgen)
-})
 # print(state_dict_inirand['linear.bias'])
 # print(model.state_dict()['linear.bias'])
 
@@ -323,7 +336,6 @@ b_nb = int(nT - b_len + 1) # int(nT_tr - b_len + 1)
 # nb_batches = int((nb_series-1)*b_nb)
 # ^ nb of CV tr batches, with 1 series left for each fold
 
-nb_param = 4*h_size*i_size + 4*h_size*h_size + 4*h_size*2 + o_size*(h_size+1)
 # nb_param = 4*h_size*i_size + 4*h_size*h_size + 4*h_size*2 + o_size*(h_size+z_fc_size+1) + z_fc_size*z_size + z_fc_size
 nb_obs = nb_series*nT # 
 
@@ -355,9 +367,13 @@ for i in range(nb_folds): # i index identifies CV fold for >=1 held-out series
     # range_series = list(range(nb_series))
     # del range_series[i] # excl i from range_series
     
-    model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
+    # model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
     # model = Model_LSTM(i_size, h_size, nb_layers, o_size, z_size, z_fc_size) # instantiate
     # model.train() # print(model)
+    if config['model']=='LSTM':
+        model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
+    elif config['model']=='LSTM2':
+        model = Model_LSTM(i_size, d1_size, h_size, d2_size, nb_layers, o_size, p_drop) # instantiate
     
     # model.load_state_dict(state_dict_inirand, strict=False)
     # # ^ <All keys matched successfully> = ok
@@ -521,6 +537,7 @@ for i in range(nb_folds): # i index identifies CV fold for >=1 held-out series
             losstr.backward() # accumulate grad over batches
         
         if epoch%(maxepoch//step_ckpt)==(maxepoch//step_ckpt-1):
+            model.eval() # necessary with dropout layers
             with torch.no_grad():
                 for b in ind_va_i: # loop over va batches (s and t)
                     # zb_b = zb[int(whichseries_i[b]), :] # static cov for series b
@@ -543,6 +560,7 @@ for i in range(nb_folds): # i index identifies CV fold for >=1 held-out series
             lossvec_tr.append(loss_tr)
             lossvec_va.append(loss_va)
             epochvec.append(epoch)
+            model.train() # back to train mode
         
         optimizer.step() # over all series and all subsets
         scheduler.step() # update lr throughout epochs
@@ -704,7 +722,7 @@ print(now_again_str)
 duration = (nowagain-now).total_seconds()
 print('Time difference of',
     int(divmod(duration,86400)[0]),'day',
-    int(divmod(duration,3600)[0]),'hours',
+    int(divmod(duration,3600)[0]),'hrs',
     int(divmod(duration,60)[0]),'min',
     int(duration % 60),'sec'
 )
@@ -713,7 +731,7 @@ print('done')
 # source /myhome/.bashrc
 # conda activate mytorch
 # cd /mydata/forestcast/william/WP3
-# run="114"
+# run="00"
 # nohup python -u src/twdlstm/cv.py LSTM_runs/configs/config_"$run".yaml > LSTM_runs/logs/log_cv_"$run".txt &
 
 # END twdlstm cv

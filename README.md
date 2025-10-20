@@ -2,12 +2,14 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 ----------------------------------------------------------------
 
 ### TODO
+* [ ] update pred.py to 0.7.2: new config arguments with k-fold CV and exec model_LSTM.py/model_LSTM2.py
 
 
 ### Version history
 
-This is twdlstm version 0.7.1. Change log:
-* v0.7.1: created model_LSTM.py, now sourced in cv.py with `exec`. Now config requires explicit path to cloned twdlstm repo, as `path_twdlstm`. Then, train.py and pred.py should do the same to update to new config arguments with k-fold CV.
+This is twdlstm version 0.7.2. Change log:
+* v0.7.2: created model_LSTM2.py (with hard-coded 'Sigmoid' output activation), adapted train.py and cv.py
+* v0.7.1: created model_LSTM.py, now sourced in cv.py and train.py with `exec`. Now config requires explicit path to cloned twdlstm repo, as `path_twdlstm`.
 * v0.7: cv.py, k-fold CV rather than leave-one-series-out. Folds are specified in config.yaml in new series_cv argument (series_trva only for train.py now), as a list of lists.
 * v0.6.5: cv.py, commented-out everything related to static input features (z), need to add option to disable it in future versions to check, e.g., elevation, helps CV pred.
 * v0.6.4:
