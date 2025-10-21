@@ -1,7 +1,7 @@
-# twdlstm model_LSTM v0.7.1
+# twdlstm model_LSTM v0.8
 
 if config['actout']=='ReLU':
-    class Model_LSTM(torch.nn.Module):
+    class Model(torch.nn.Module):
         # def __init__(self, input_size, d_hidden, num_layers, output_size, z_size, z_fc_size):
         def __init__(self, input_size, d_hidden, num_layers, output_size):
             super().__init__()
@@ -54,7 +54,7 @@ if config['actout']=='ReLU':
             )
             return hidden
 elif config['actout']=='Softplus':
-    class Model_LSTM(torch.nn.Module):
+    class Model(torch.nn.Module):
         # def __init__(self, input_size, d_hidden, num_layers, output_size, z_size, z_fc_size):
         def __init__(self, input_size, d_hidden, num_layers, output_size):
             super().__init__()
@@ -106,7 +106,7 @@ elif config['actout']=='Softplus':
             )
             return hidden
 elif config['actout']=='Sigmoid':
-    class Model_LSTM(torch.nn.Module):
+    class Model(torch.nn.Module):
         # def __init__(self, input_size, d_hidden, num_layers, output_size, z_size, z_fc_size):
         def __init__(self, input_size, d_hidden, num_layers, output_size):
             super().__init__()
@@ -157,5 +157,5 @@ elif config['actout']=='Sigmoid':
 #     )
 #     return hidden
 
-# model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
+# model = Model(i_size, h_size, nb_layers, o_size) # instantiate
 # model.train() # print(model)

@@ -1,4 +1,4 @@
-# twdlstm model_LSTM2 v0.7.2
+# twdlstm model_LSTM2 v0.8
 
 # if config['actout']=='ReLU':
 #     class Model_LSTM(torch.nn.Module):
@@ -107,7 +107,7 @@
 #             return hidden
 # elif config['actout']=='Sigmoid':
 
-class Model_LSTM(torch.nn.Module):
+class Model(torch.nn.Module):
     def __init__(self, input_size, d1_hidden, d_hidden, d2_hidden, num_layers, output_size, p_drop):
         super().__init__()
         self.d1_hidden = d1_hidden
@@ -147,5 +147,5 @@ class Model_LSTM(torch.nn.Module):
         x = self.actout(self.linear(x))
         return x, hidden
 
-# model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
+# model = Model(i_size, h_size, nb_layers, o_size) # instantiate
 # model.train() # print(model)

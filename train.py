@@ -1,4 +1,4 @@
-# twdlstm train v0.7.2
+# twdlstm train v0.8
 
 import sys # CLI argumennts: print(sys.argv)
 import os # os.getcwd, os.chdir
@@ -44,7 +44,7 @@ path_tstoy = config['path_data'] + '/tstoy' + config['tstoy'] + '/'
 # now = datetime.now() # UTC by def on runai
 now = datetime.now(tz=ZoneInfo("Europe/Zurich"))
 now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-print(now_str + ' running twdlstm train v0.7.2\n')
+print(now_str + ' running twdlstm train v0.8\n')
 # print('\n')
 
 print('Supplied config:')
@@ -292,12 +292,14 @@ nb_va_loss = nb_va # nb_va*hor
 
 #%% LSTM model class, initial values
 i_size = nb_cov # xb.shape[2] # nb cols in x = nb input features 
-d1_size = config['d1_size']
-h_size = config['h_size']
-d2_size = config['d2_size']
-o_size = config['o_size']
-nb_layers = config['nb_layers']
-p_drop = config['p_drop']
+h_size = config['h_size'] # LSTM/LSTM2
+o_size = config['o_size'] # LSTM/LSTM2
+nb_layers = config['nb_layers'] # LSTM/LSTM2
+d1_size = config['d1_size'] # LSTM2
+d2_size = config['d2_size'] # LSTM2
+p_drop = config['p_drop'] # LSTM2
+model_dim = config['model_dim'] # transfo
+feedfwd_dim = config['feedfwd_dim']# transfo
 
 h0 = torch.zeros(nb_layers, h_size, device=device) # num_layers, hidden_size
 c0 = torch.zeros(nb_layers, h_size, device=device) # num_layers, hidden_size
@@ -307,7 +309,7 @@ tgen = torch.Generator(device=device).manual_seed(int(config['torch_seed']))
 
 if config['model']=='LSTM':
     exec(open(config['path_twdlstm'] + '/model_LSTM.py').read())
-    model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
+    model = Model(i_size, h_size, nb_layers, o_size) # instantiate
     state_dict_inirand = OrderedDict({
         'lstm.weight_ih_l0': torch.randn(4*h_size, i_size, device=device,generator=tgen),
         'lstm.weight_hh_l0': torch.randn(4*h_size, h_size, device=device,generator=tgen),
@@ -319,7 +321,7 @@ if config['model']=='LSTM':
     nb_param = 4*h_size*i_size + 4*h_size*h_size + 4*h_size*2 + o_size*(h_size+1)
 elif config['model']=='LSTM2':
     exec(open(config['path_twdlstm'] + '/model_LSTM2.py').read())
-    model = Model_LSTM(i_size, d1_size, h_size, d2_size, nb_layers, o_size, p_drop) # instantiate
+    model = Model(i_size, d1_size, h_size, d2_size, nb_layers, o_size, p_drop) # instantiate
     state_dict_inirand = OrderedDict({
         'fc1.weight': torch.randn(d1_size, i_size, device=device,generator=tgen),
         'fc1.bias': torch.randn(d1_size, device=device,generator=tgen),
@@ -333,8 +335,34 @@ elif config['model']=='LSTM2':
         'linear.bias': torch.randn(o_size, device=device,generator=tgen)
     })
     nb_param = d1_size*(i_size+1) + 4*h_size*(d1_size+h_size+2) + d2_size*(h_size+1) + o_size*(d2_size+1)
+elif config['model']=='transfo':
+    exec(open(config['path_twdlstm'] + '/model_transfo.py').read())
+    # Model(i_dim, seq_len, model_dim, num_layers, nhead, feedfwd_dim, o_dim)
+    model = Model(i_size, b_len, model_dim, 1, 1, feedfwd_dim, o_size) # instantiate
+    # ^ b_len=batch_len=seq_len, num_layers=nhead=1 hard-coded for now
+    state_dict_inirand = OrderedDict({
+        'input_proj.weight': torch.randn(model_dim, i_size, device=device,generator=tgen),
+        'input_proj.bias': torch.randn(model_dim, device=device,generator=tgen),
+        'encoder.layers.0.self_attn.in_proj_weight': torch.randn(3*model_dim, model_dim, device=device,generator=tgen),
+        'encoder.layers.0.self_attn.in_proj_bias': torch.randn(3*model_dim, device=device,generator=tgen),
+        'encoder.layers.0.self_attn.out_proj.weight': torch.randn(model_dim, model_dim, device=device,generator=tgen),
+        'encoder.layers.0.self_attn.out_proj.bias':torch.randn(model_dim, device=device,generator=tgen),
+        'encoder.layers.0.linear1.weight': torch.randn(feedfwd_dim, model_dim, device=device,generator=tgen),
+        'encoder.layers.0.linear1.bias': torch.randn(feedfwd_dim, device=device,generator=tgen),
+        'encoder.layers.0.linear2.weight': torch.randn(model_dim, feedfwd_dim, device=device,generator=tgen),
+        'encoder.layers.0.linear2.bias': torch.randn(model_dim, device=device,generator=tgen),
+        'encoder.layers.0.norm1.weight': torch.randn(model_dim, device=device,generator=tgen),
+        'encoder.layers.0.norm1.bias': torch.randn(model_dim, device=device,generator=tgen),
+        'encoder.layers.0.norm2.weight': torch.randn(model_dim, device=device,generator=tgen),
+        'encoder.layers.0.norm2.bias': torch.randn(model_dim, device=device,generator=tgen),
+        'pos_encoding.pe': torch.randn(b_len, model_dim, device=device,generator=tgen),
+        'output_proj.weight': torch.randn(o_size, model_dim, device=device,generator=tgen),
+        'output_proj.bias': torch.randn(o_size, device=device,generator=tgen)
+    })
+    # sum(int(torch.numel(t)) for t in state_dict_inirand.values())
+    # model_dim*(i_size+1) + 3*model_dim*(model_dim+1) + model_dim*(model_dim+1) + feedfwd_dim*(model_dim+1) + model_dim*(feedfwd_dim+1) + 4*model_dim + b_len*model_dim + o_size*(model_dim+1)
+    nb_param = model_dim*(i_size + 4*model_dim + 2*feedfwd_dim + b_len + 11) + feedfwd_dim + 1
 
-# model = Model_LSTM(i_size, h_size, nb_layers, o_size, z_size, z_fc_size) # instantiate
 # model.train() # print(model)
 
 # # print model's state_dict:
@@ -450,44 +478,78 @@ while (epoch < maxepoch) :
     optimizer.zero_grad()
     loss_tr = 0.0 # just to display
     loss_va = 0.0 # record va loss
-    # for b in range(xtr_b.shape[0]): # loop over tr batches (s and t)
-    for b in ind_tr: # loop over tr batches (s and t)
-        # zb_b = zb[int(whichseries[b]), :] # static covariates for series b
-        # fwdpass = model(xb[b,:,:], zb_b, (h0,c0)) # added static cov
-        fwdpass = model(xb[b,:,:], (h0,c0)) # from ini
-        y_pred = fwdpass[0][-len_reg:,:]
-        lap_reg = torch.norm(torch.matmul(lap, y_pred),1) # sum abs diff
-        y_pred = y_pred[ind_hor].reshape(-1,1)
-        y_b_tmp = yb[b,ind_hor].reshape(-1,1)
-        losstr = loss_fn(y_pred, y_b_tmp) + hp_lambda*lap_reg
-        loss_tr += losstr.item()
-        losstr.backward() # accumulate grad over batches
-    
-    if epoch%(maxepoch//step_ckpt)==(maxepoch//step_ckpt-1):
-        model.eval() # necessary with dropout layers
-        with torch.no_grad():
-            for b in ind_va: # loop over va batches (s and t)
-                # zb_b = zb[int(whichseries[b]), :] # static covariates for series b
-                # fwdpass = model(xb[b,:,:], zb_b, (h0,c0)) # added static cov
-                fwdpass = model(xb[b,:,:], (h0,c0)) # from ini
-                y_pred = fwdpass[0][ind_hor].reshape(-1,1) # horizon obs
-                loss_va += loss_fn(y_pred, yb[b,ind_hor].reshape(-1,1)).item()
+    if config['model'] in ['LSTM','LSTM2']:
+        for b in ind_tr: # loop over tr batches (s and t)
+            # zb_b = zb[int(whichseries[b]), :] # static covariates for series b
+            # fwdpass = model(xb[b,:,:], zb_b, (h0,c0)) # added static cov
+            fwdpass = model(xb[b,:,:], (h0,c0)) # from ini
+            y_pred = fwdpass[0][-len_reg:,:]
+            lap_reg = torch.norm(torch.matmul(lap, y_pred),1) # sum abs diff
+            y_pred = y_pred[ind_hor].reshape(-1,1)
+            y_b_tmp = yb[b,ind_hor].reshape(-1,1)
+            losstr = loss_fn(y_pred, y_b_tmp) + hp_lambda*lap_reg
+            loss_tr += losstr.item()
+            losstr.backward() # accumulate grad over batches
         
-        loss_tr = loss_tr/nb_tr_loss # sum squared/absolute errors -> MSE/MAE
-        loss_va = loss_va/nb_va_loss # sum squared/absolute errors -> MSE/MAE
-        # save checkpoint for best intermediate fit
-        if not lossvec_va: # check if empty
-            torch.save(model.state_dict(), path_ckpt + '_ckpt_best.pt')
-            epoch_best = epoch
-        elif loss_va<min(lossvec_va):
-            torch.save(model.state_dict(), path_ckpt + '_ckpt_best.pt')
-            epoch_best = epoch
-        # print('epoch='+str(epoch)+': tr',config['loss'],'loss = {:.4f}'.format(loss_tr))
-        print('epoch='+str(epoch),config['loss'],'loss: tr = {:.4f}'.format(loss_tr)+', va = {:.4f}'.format(loss_va))
-        lossvec_tr.append(loss_tr)
-        lossvec_va.append(loss_va)
-        epochvec.append(epoch)
-        model.train() # back to train mode
+        if epoch%(maxepoch//step_ckpt)==(maxepoch//step_ckpt-1):
+            model.eval() # necessary with dropout layers
+            with torch.no_grad():
+                for b in ind_va: # loop over va batches (s and t)
+                    # zb_b = zb[int(whichseries[b]), :] # static covariates for series b
+                    # fwdpass = model(xb[b,:,:], zb_b, (h0,c0)) # added static cov
+                    fwdpass = model(xb[b,:,:], (h0,c0)) # from ini
+                    y_pred = fwdpass[0][ind_hor].reshape(-1,1) # horizon obs
+                    loss_va += loss_fn(y_pred, yb[b,ind_hor].reshape(-1,1)).item()
+            
+            loss_tr = loss_tr/nb_tr_loss # sum squared/absolute errors -> MSE/MAE
+            loss_va = loss_va/nb_va_loss # sum squared/absolute errors -> MSE/MAE
+            # save checkpoint for best intermediate fit
+            if not lossvec_va: # check if empty
+                torch.save(model.state_dict(), path_ckpt + '_ckpt_best.pt')
+                epoch_best = epoch
+            elif loss_va<min(lossvec_va):
+                torch.save(model.state_dict(), path_ckpt + '_ckpt_best.pt')
+                epoch_best = epoch
+            # print('epoch='+str(epoch)+': tr',config['loss'],'loss = {:.4f}'.format(loss_tr))
+            print('epoch='+str(epoch),config['loss'],'loss: tr = {:.4f}'.format(loss_tr)+', va = {:.4f}'.format(loss_va))
+            lossvec_tr.append(loss_tr)
+            lossvec_va.append(loss_va)
+            epochvec.append(epoch)
+            model.train() # back to train mode
+    elif config['model']=='transfo':
+        for b in ind_tr: # loop over tr batches (s and t)
+            fwdpass = model(xb[b,:,:])
+            y_pred = fwdpass[-len_reg:,0]
+            lap_reg = torch.norm(torch.matmul(lap, y_pred),1) # sum abs diff
+            y_pred = y_pred[ind_hor].reshape(-1,1)
+            y_b_tmp = yb[b,ind_hor].reshape(-1,1)
+            losstr = loss_fn(y_pred, y_b_tmp) + hp_lambda*lap_reg
+            loss_tr += losstr.item()
+            losstr.backward() # accumulate grad over batches
+        
+        if epoch%(maxepoch//step_ckpt)==(maxepoch//step_ckpt-1):
+            model.eval() # necessary with dropout layers
+            with torch.no_grad():
+                for b in ind_va: # loop over va batches (s and t)
+                    fwdpass = model(xb[b,:,:])
+                    y_pred = fwdpass[ind_hor,0].reshape(-1,1) # horizon obs
+                    loss_va += loss_fn(y_pred, yb[b,ind_hor].reshape(-1,1)).item()
+            
+            loss_tr = loss_tr/nb_tr_loss # sum squared/absolute errors -> MSE/MAE
+            loss_va = loss_va/nb_va_loss # sum squared/absolute errors -> MSE/MAE
+            # save checkpoint for best intermediate fit
+            if not lossvec_va: # check if empty
+                torch.save(model.state_dict(), path_ckpt + '_ckpt_best.pt')
+                epoch_best = epoch
+            elif loss_va<min(lossvec_va):
+                torch.save(model.state_dict(), path_ckpt + '_ckpt_best.pt')
+                epoch_best = epoch
+            # print('epoch='+str(epoch)+': tr',config['loss'],'loss = {:.4f}'.format(loss_tr))
+            print('epoch='+str(epoch),config['loss'],'loss: tr = {:.4f}'.format(loss_tr)+', va = {:.4f}'.format(loss_va))
+            lossvec_tr.append(loss_tr)
+            lossvec_va.append(loss_va)
+            epochvec.append(epoch)
+            model.train() # back to train mode
     
     optimizer.step() # over all series and all subsets
     scheduler.step() # update lr throughout epochs
@@ -497,7 +559,6 @@ while (epoch < maxepoch) :
 
 wallclock1 = time.time() # in seconds
 print('while loop took',round((wallclock1 - wallclock0)/60,1),'m\n')
-
 print('Smallest va loss at epoch =',epoch_best,'\n')
 
 
@@ -518,10 +579,25 @@ if not os.path.exists(path_out_trva):
     os.makedirs(path_out_trva) # create te output dir if does not exist
 
 
+if max(lossvec_tr+lossvec_va)/min(lossvec_tr+lossvec_va) > 10.0:
+    lbub = (
+        0.9*min(lossvec_tr+lossvec_va),
+        10.0*min(lossvec_tr+lossvec_va)
+    )
+else:
+    lbub = (
+        0.9*min(lossvec_tr+lossvec_va),
+        1.1*max(lossvec_tr+lossvec_va)
+    )
+
+# ^ set y axis min/max for loss plot, neceesary if large range
+
 plt.figure(figsize=(12,6))
 plt.plot(epochvec, np.array(lossvec_tr), c=colvec[0], label='tr loss')
 # plt.scatter(range(maxepoch), np.array(lossvec_tr)/nT_tr, s=16,c=colvec[0])
 plt.plot(epochvec, np.array(lossvec_va), c=colvec[1], label='va loss')
+ax = plt.gca()
+ax.set_ylim(lbub)
 # plt.scatter(range(maxepoch), np.array(lossvec_va)/nT_va, s=16, c=colvec[1])
 plt.legend(loc='upper right')
 plt.title('training and validation '+config['loss']+' loss over all series')
@@ -532,46 +608,73 @@ plt.close()
 # assuming hor=1, so one obs per tr batch
 ytr = np.zeros(nb_tr)
 ytr_pred = np.zeros(nb_tr)
-if device.type=='cuda': # need to transfer from GPU to CPU for np
-    for b in range(nb_tr): # loop over tr batches (s and t)
-        ind_tr_b = ind_tr[b]
-        # zb_b = zb[int(whichseries[ind_tr_b]), :] # static cov for series b
-        # fwdpass_b = model(xb[ind_tr_b,:,:], zb_b, (h0,c0)) # from ini
-        fwdpass_b = model(xb[ind_tr_b,:,:], (h0,c0)) # from ini
-        ytr_pred[b] = fwdpass_b[0][ind_hor].cpu().detach().numpy().item()
-        ytr[b] = yb[ind_tr_b,ind_hor].reshape(-1,1).cpu().detach().numpy().item()
-else: # then device.type='cpu'
-    for b in range(nb_tr): # loop over tr batches (s and t)
-        ind_tr_b = ind_tr[b]
-        # zb_b = zb[int(whichseries[ind_tr_b]), :] # static cov for series b
-        # fwdpass_b = model(xb[ind_tr_b,:,:], zb_b, (h0,c0)) # from ini
-        fwdpass_b = model(xb[ind_tr_b,:,:], (h0,c0)) # from ini
-        ytr_pred[b] = fwdpass_b[0][ind_hor].detach().numpy().item()
-        ytr[b] = yb[ind_tr_b,ind_hor].reshape(-1,1).detach().numpy().item()
+if config['model'] in ['LSTM','LSTM2']:
+    if device.type=='cuda': # need to transfer from GPU to CPU for np
+        for b in range(nb_tr): # loop over tr batches (s and t)
+            ind_tr_b = ind_tr[b]
+            # zb_b = zb[int(whichseries[ind_tr_b]), :] # static cov for series b
+            # fwdpass_b = model(xb[ind_tr_b,:,:], zb_b, (h0,c0)) # from ini
+            fwdpass_b = model(xb[ind_tr_b,:,:], (h0,c0)) # from ini
+            ytr_pred[b] = fwdpass_b[0][ind_hor].cpu().detach().numpy().item()
+            ytr[b] = yb[ind_tr_b,ind_hor].reshape(-1,1).cpu().detach().numpy().item()
+    else: # then device.type='cpu'
+        for b in range(nb_tr): # loop over tr batches (s and t)
+            ind_tr_b = ind_tr[b]
+            # zb_b = zb[int(whichseries[ind_tr_b]), :] # static cov for series b
+            # fwdpass_b = model(xb[ind_tr_b,:,:], zb_b, (h0,c0)) # from ini
+            fwdpass_b = model(xb[ind_tr_b,:,:], (h0,c0)) # from ini
+            ytr_pred[b] = fwdpass_b[0][ind_hor].detach().numpy().item()
+            ytr[b] = yb[ind_tr_b,ind_hor].reshape(-1,1).detach().numpy().item()
+elif config['model']=='transfo':
+    if device.type=='cuda': # need to transfer from GPU to CPU for np
+        for b in range(nb_tr): # loop over tr batches (s and t)
+            ind_tr_b = ind_tr[b]
+            fwdpass_b = model(xb[ind_tr_b,:,:])
+            ytr_pred[b] = fwdpass_b[ind_hor,0].cpu().detach().numpy().item()
+            ytr[b] = yb[ind_tr_b,ind_hor].reshape(-1,1).cpu().detach().numpy().item()
+    else: # then device.type='cpu'
+        for b in range(nb_tr): # loop over tr batches (s and t)
+            ind_tr_b = ind_tr[b]
+            fwdpass_b = model(xb[ind_tr_b,:,:])
+            ytr_pred[b] = fwdpass_b[ind_hor,0].detach().numpy().item()
+            ytr[b] = yb[ind_tr_b,ind_hor].reshape(-1,1).detach().numpy().item()
 
 print('tr R^2 =',round(r2_score(ytr, ytr_pred),4)) # R^2 on training batches
 
 yva = np.zeros(nb_va)
 yva_pred = np.zeros(nb_va)
-if device.type=='cuda': # need to transfer from GPU to CPU for np
-    for b in range(nb_va): # loop over tr batches (s and t)
-        ind_va_b = ind_va[b]
-        # zb_b = zb[int(whichseries[ind_va_b]), :] # static cov for series b
-        # fwdpass_b = model(xb[ind_va_b,:,:], zb_b, (h0,c0)) # from ini
-        fwdpass_b = model(xb[ind_va_b,:,:], (h0,c0)) # from ini
-        yva_pred[b] = fwdpass_b[0][ind_hor].cpu().detach().numpy().item()
-        yva[b] = yb[ind_va_b,ind_hor].reshape(-1,1).cpu().detach().numpy().item()
-else: # then device.type='cpu'
-    for b in range(nb_va): # loop over tr batches (s and t)
-        ind_va_b = ind_va[b]
-        # zb_b = zb[int(whichseries[ind_va_b]), :] # static cov for series b
-        # fwdpass_b = model(xb[ind_va_b,:,:], zb_b, (h0,c0)) # from ini
-        fwdpass_b = model(xb[ind_va_b,:,:], (h0,c0)) # from ini
-        yva_pred[b] = fwdpass_b[0][ind_hor].detach().numpy().item()
-        yva[b] = yb[ind_va_b,ind_hor].reshape(-1,1).detach().numpy().item()
+if config['model'] in ['LSTM','LSTM2']:
+    if device.type=='cuda': # need to transfer from GPU to CPU for np
+        for b in range(nb_va): # loop over tr batches (s and t)
+            ind_va_b = ind_va[b]
+            # zb_b = zb[int(whichseries[ind_va_b]), :] # static cov for series b
+            # fwdpass_b = model(xb[ind_va_b,:,:], zb_b, (h0,c0)) # from ini
+            fwdpass_b = model(xb[ind_va_b,:,:], (h0,c0)) # from ini
+            yva_pred[b] = fwdpass_b[0][ind_hor].cpu().detach().numpy().item()
+            yva[b] = yb[ind_va_b,ind_hor].reshape(-1,1).cpu().detach().numpy().item()
+    else: # then device.type='cpu'
+        for b in range(nb_va): # loop over tr batches (s and t)
+            ind_va_b = ind_va[b]
+            # zb_b = zb[int(whichseries[ind_va_b]), :] # static cov for series b
+            # fwdpass_b = model(xb[ind_va_b,:,:], zb_b, (h0,c0)) # from ini
+            fwdpass_b = model(xb[ind_va_b,:,:], (h0,c0)) # from ini
+            yva_pred[b] = fwdpass_b[0][ind_hor].detach().numpy().item()
+            yva[b] = yb[ind_va_b,ind_hor].reshape(-1,1).detach().numpy().item()
+elif config['model']=='transfo':
+    if device.type=='cuda': # need to transfer from GPU to CPU for np
+        for b in range(nb_va): # loop over tr batches (s and t)
+            ind_va_b = ind_va[b]
+            fwdpass_b = model(xb[ind_va_b,:,:])
+            yva_pred[b] = fwdpass_b[ind_hor,0].cpu().detach().numpy().item()
+            yva[b] = yb[ind_va_b,ind_hor].reshape(-1,1).cpu().detach().numpy().item()
+    else: # then device.type='cpu'
+        for b in range(nb_va): # loop over tr batches (s and t)
+            ind_va_b = ind_va[b]
+            fwdpass_b = model(xb[ind_va_b,:,:])
+            yva_pred[b] = fwdpass_b[ind_hor,0].detach().numpy().item()
+            yva[b] = yb[ind_va_b,ind_hor].reshape(-1,1).detach().numpy().item()
 
 print('va R^2 =',round(r2_score(yva, yva_pred),4)) # R^2 on validation batches
-
 
 
 # count_trva = 0
@@ -616,14 +719,19 @@ print('va R^2 =',round(r2_score(yva, yva_pred),4)) # R^2 on validation batches
 
 print('\n')
 nowagain = datetime.now(tz=ZoneInfo("Europe/Zurich"))
-now_again_str = nowagain.strftime("%Y-%m-%d %H:%M:%S")
-print(now_again_str)
+nowagain_str = nowagain.strftime("%Y-%m-%d %H:%M:%S")
+print(nowagain_str)
 duration = (nowagain-now).total_seconds()
+dur_day = divmod(duration, 86400)
+rem = dur_day[1] # remaining seconds after days
+dur_hrs = divmod(rem, 3600)
+rem = dur_hrs[1] # remaining seconds after hours
+dur_min = divmod(rem, 60)
 print('Time difference of',
-    int(divmod(duration,86400)[0]),'day',
-    int(divmod(duration,3600)[0]),'hrs',
-    int(divmod(duration,60)[0]),'min',
-    int(duration % 60),'sec'
+    int(dur_day[0]),'day',
+    int(dur_hrs[0]),'hrs',
+    int(dur_min[0]),'min',
+    int(dur_min[1]),'sec'
 )
 print('done')
 

@@ -717,14 +717,19 @@ print('Ave te R^2 over CV folds =',round(np.mean(r2_va),4))
 
 print('\n')
 nowagain = datetime.now(tz=ZoneInfo("Europe/Zurich"))
-now_again_str = nowagain.strftime("%Y-%m-%d %H:%M:%S")
-print(now_again_str)
+nowagain_str = nowagain.strftime("%Y-%m-%d %H:%M:%S")
+print(nowagain_str)
 duration = (nowagain-now).total_seconds()
+dur_day = divmod(duration, 86400)
+rem = dur_day[1] # remaining seconds after days
+dur_hrs = divmod(rem, 3600)
+rem = dur_hrs[1] # remaining seconds after hours
+dur_min = divmod(rem, 60)
 print('Time difference of',
-    int(divmod(duration,86400)[0]),'day',
-    int(divmod(duration,3600)[0]),'hrs',
-    int(divmod(duration,60)[0]),'min',
-    int(duration % 60),'sec'
+    int(dur_day[0]),'day',
+    int(dur_hrs[0]),'hrs',
+    int(dur_min[0]),'min',
+    int(dur_min[1]),'sec'
 )
 print('done')
 
