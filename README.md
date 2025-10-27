@@ -2,7 +2,12 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 ----------------------------------------------------------------
 
 ### TODO
-* [ ] update pred.py to 0.7.2: new config arguments with k-fold CV and exec model_LSTM.py/model_LSTM2.py
+* [ ] update cv.py to 0.8: add transfo model option, then officially label it v0.8 (still v0.7.2).
+* [ ] update pred.py to 0.7.2/0.8:
+  - new config arguments with k-fold CV
+  - exec model_LSTM.py/model_LSTM2.py
+  - transfo model
+  - generic "Model" naming
 
 
 ### Version history
@@ -10,7 +15,7 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 This is twdlstm version 0.8. Change log:
 * v0.8:
   - created model_transfo.py, which uses only the encoder side of a transformer. Adapted train.py for it, but still haven't updated cv.py (still labeled v0.7.2).
-  - all models are generically named "Model" in train.py. Still cv.py to update (still labeled v0.7.2).
+  - all models are generically named "Model" in train.py and cv.py.
   - fixed timing computation at the end of train.py and cv.py.
 * v0.7.2: created model_LSTM2.py (with hard-coded 'Sigmoid' output activation), adapted train.py and cv.py
 * v0.7.1: created model_LSTM.py, now sourced in cv.py and train.py with `exec`. Now config requires explicit path to cloned twdlstm repo, as `path_twdlstm`.

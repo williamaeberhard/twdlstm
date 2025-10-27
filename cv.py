@@ -237,7 +237,7 @@ tgen = torch.Generator(device=device).manual_seed(config['torch_seed'])
 
 if config['model']=='LSTM':
     exec(open(config['path_twdlstm'] + '/model_LSTM.py').read())
-    model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
+    model = Model(i_size, h_size, nb_layers, o_size) # instantiate
     state_dict_inirand = OrderedDict({
         'lstm.weight_ih_l0': torch.randn(4*h_size, i_size, device=device,generator=tgen),
         'lstm.weight_hh_l0': torch.randn(4*h_size, h_size, device=device,generator=tgen),
@@ -249,7 +249,7 @@ if config['model']=='LSTM':
     nb_param = 4*h_size*i_size + 4*h_size*h_size + 4*h_size*2 + o_size*(h_size+1)
 elif config['model']=='LSTM2':
     exec(open(config['path_twdlstm'] + '/model_LSTM2.py').read())
-    model = Model_LSTM(i_size, d1_size, h_size, d2_size, nb_layers, o_size, p_drop) # instantiate
+    model = Model(i_size, d1_size, h_size, d2_size, nb_layers, o_size, p_drop) # instantiate
     state_dict_inirand = OrderedDict({
         'fc1.weight': torch.randn(d1_size, i_size, device=device,generator=tgen),
         'fc1.bias': torch.randn(d1_size, device=device,generator=tgen),
@@ -371,9 +371,9 @@ for i in range(nb_folds): # i index identifies CV fold for >=1 held-out series
     # model = Model_LSTM(i_size, h_size, nb_layers, o_size, z_size, z_fc_size) # instantiate
     # model.train() # print(model)
     if config['model']=='LSTM':
-        model = Model_LSTM(i_size, h_size, nb_layers, o_size) # instantiate
+        model = Model(i_size, h_size, nb_layers, o_size) # instantiate
     elif config['model']=='LSTM2':
-        model = Model_LSTM(i_size, d1_size, h_size, d2_size, nb_layers, o_size, p_drop) # instantiate
+        model = Model(i_size, d1_size, h_size, d2_size, nb_layers, o_size, p_drop) # instantiate
     
     # model.load_state_dict(state_dict_inirand, strict=False)
     # # ^ <All keys matched successfully> = ok
