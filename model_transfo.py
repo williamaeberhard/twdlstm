@@ -32,12 +32,13 @@ class Model(torch.nn.Module):
         self.encoder = torch.nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
         self.pos_encoding = PositionalEncoding(model_dim, seq_len)
         self.output_proj = torch.nn.Linear(model_dim, o_dim)
+        self.actout = torch.nn.Sigmoid()
     
     def forward(self, x):
         x = self.input_proj(x)
         x = self.pos_encoding(x)
         x = self.encoder(x)
-        return self.output_proj(x)
+        return self.actout(self.output_proj(x))
 
 # i_dim = nb covariates
 # seq_len = nb time steps in covariates = batch_len
