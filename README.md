@@ -2,7 +2,7 @@ twdlstm: PyTorch code for training an LSTM NN on TWD_norm series
 ----------------------------------------------------------------
 
 ### TODO
-* [ ] update cv.py to 0.8: add transfo model option, then officially label it v0.8 (still v0.7.2).
+* [ ] update cv1.py to 0.8
 * [ ] update pred.py to 0.7.2/0.8:
   - new config arguments with k-fold CV
   - exec model_LSTM.py/model_LSTM2.py
