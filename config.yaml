@@ -1,74 +1,68 @@
-# Configuration for twdlstm v0.7.2
+# Configuration for twdlstm v0.8
 
 path_data: '/mydata/forestcast/william/WP3/DataProcessed'
-path_outputdir: '/mydata/forestcast/william/WP3/LSTM_runs/outputs'
-path_checkpointdir: '/mydata/forestcast/william/WP3/LSTM_runs/checkpoints'
+path_outputdir: '/mydata/forestcast/william/WP3/src/tmp'
+path_checkpointdir: '/mydata/forestcast/william/WP3/src/tmp'
 path_twdlstm: '/mydata/forestcast/william/WP3/src/twdlstm'
 
 prefixoutput: '00' #
 
-tstoy: '09'
+tstoy: '10' # 10 is the latest as of v0.8
 # ^ '04' for tstoy04, '05' for tstoy05, etc.
 
-series_cv: [
-  ['048', '037', '089'],
-  ['024', '094', '041'],
-] # tstoy09 2-fold CV, for quick tests
-series_trva: [
-  '048', '037', '089', '024', '094', '041'
-] # tstoy09 small subset for quick tests
-series_te: ["004", "008"] # tstoy09 test pa
-# ^ trva for train.py, cv for cv.py, te for test.py
+# series are sites-species (sisp) id, for tstoy10: '001' till '091' (trva)
+series_cv: [ # for cv.py
+  ['048', '037'],
+  ['091'],
+  ['089']
+] # tstoy10 3-fold CV, for quick tests
+series_trva: [ # for train.py
+  '048', '037', '091', '089'
+] # tstoy10 small subset for quick tests
 
-# date_t0: '2018-01-01' # time points are daily
-date_t0: '2021-04-01 00:00:00' # tstoy09: time points are 2-hourly
-nT: 6000 # 1826 # time window length, obs split in batches, starts from date_t0
-prop_va: 0.01 # 0.01, 0.2 # prop of data batches held-out for va set (train.py)
-prop_tr_sub: 0.01 # 0.5, 1.0 # prop of tr subsampled batches (train.py)
+date_t0: '2015-01-01' # tstoy10: daily time points 2014-01-01 to 2018-12-31
+nT: 1000 # time window length, obs split in batches, starts from date_t0
+prop_va: 0.1 # 0.01, 0.2 # prop of data batches held-out for va set (train.py)
+prop_tr_sub: 0.5 # 0.5, 1.0 # prop of tr subsampled batches (train.py)
 srs_seed: 1234 # seed for simple random sampling for va subset
 
-batch_len: 10 # length of batches, both for tr and va
+batch_len: 30 # length of batches, both for tr and va
 
-# covvec: ['pr', 'at', 'ws', 'dp', 'sr', 'lr'] # tstoy04 all
-# covvec: ['pr', 'at', 'ws', 'dp', 'sr', 'lr', 'vp', 'sw', 'dy'] # tstoy08 all
-covvec: ['vp','at'] # tstoy09 good subset
+# covvec: ['pr', 'at', 'rh', 'ws', 'gr', 'vp', 'sw',] # tstoy10 all
+covvec: ['vp','sw'] # tstoy10 good subset
 
-# zvec: ['el'] # tstoy08 quick check
-# zvec: ['ea', 'no', 'el'] # tstoy08 all
-# ^ static input features (z)
-# z_fc_size: 1 # 1 good enough?
-# ^ size of fully connected layer for z
-
-model: 'LSTM2' # 'LSTM', 'LSTM2'
-d1_size: 16 # LSTM2
-h_size: 16 # 8,16,32,64 <= 16 generally good # LSTM/LSTM2
-d2_size: 4 # LSTM2
+model: 'LSTM' # 'LSTM', 'LSTM2', 'transfo'
+h_size: 16 # 8,16,32,64 # LSTM/LSTM2
 o_size: 1 # 1
 nb_layers: 1 # 1
+d1_size: 16 # LSTM2
+d2_size: 4 # LSTM2
 p_drop: 0.0 # 0.0 = no dropout # LSTM2
+model_dim: 64 # must be even, 512 # transfo
+feedfwd_dim: 16 # 64 # transfo
 actout: 'Sigmoid' # 'ReLU', 'Softplus', 'Sigmoid'
-# ^ 'ReLU' and 'Softplus' for tstoy04-tstoy06, 'Sigmoid' for tstoy07-tstoy09
+# ^ 'ReLU' and 'Softplus' for tstoy04-tstoy06, 'Sigmoid' for tstoy07-tstoy10
 
 lambda_LaplacianReg: 0.0 # 0.0, 0.01, 0.05
 # ^ multiplies sum abs diff pred within each batch
-len_reg: 4 # 10 # min(10, batch_len/4)
+len_reg: 10 # min(10, batch_len/4)
 # ^ nb pred that are regularized at end of each batch, must be < batch_len
 
 torch_seed: 123 # torch.randn
 
-maxepoch: 10 # 50, 100, 200, 500
-step_ckpt: 5 # 10
+maxepoch: 20 # 50, 100, 200, 500
+step_ckpt: 10 # 10
 # ^ print and record tr/va loss every maxepoch/step_ckpt epoch
 
 loss: 'MSE' # 'MSE', 'MAE'
 optim: 'RMSprop' # 'RMSprop', 'Adam', 'AdamW', 'RAdam'
-learning_rate: 1e-2 # 1e-2 is good, 1e-1 better if scheduling
-sch_rel_step_size: 2 # shrink lr every int(maxepoch/sch_rel_step_size) # 2, 3
+learning_rate: 1e-2 # 1e-2 is good, 1e-1 fine if scheduling
+sch_rel_step_size: 1 # shrink lr every int(maxepoch/sch_rel_step_size) # 2, 3
 sch_gamma: 1.0 # factor shrinking lr # 0.1, 0.5
 alphal2: 0.0 # L2 pen (weight decay) in RMSprop # 0.0, 0.05, 0.1, 0.5, 0.8
 momentum: 0.0 # 0.8 # momentum in RMSprop # 0.0, 0.5, 0.8
 
-# run from /mydata/forestcast/william/WP3:
-# python -u src/twdlstm/train.py LSTM_runs/configs/config_00.yaml > LSTM_runs/logs/log_trva_00.txt
-# python -u src/twdlstm/cv.py LSTM_runs/configs/config_00.yaml > LSTM_runs/logs/log_cv_00.txt
-# python -u src/twdlstm/test.py LSTM_runs/configs/config_00.yaml > LSTM_runs/logs/log_te_00.txt
+# cd /mydata/forestcast/william/WP3/src/twdlstm
+# conda activate mytorch
+# python -u train.py config.yaml > ../tmp/log_trva_00.txt
+# python -u cv.py config.yaml > ../tmp/log_cv_00.txt

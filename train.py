@@ -18,6 +18,7 @@ from collections import OrderedDict # saving/loading model state_dict
 # os.chdir('/mydata/forestcast/william/WP3') # setwd()
 
 # path_config = '/mydata/forestcast/william/WP3/LSTM_runs/configs/config_00.yaml'
+# path_config = '/mydata/forestcast/william/WP3/src/twdlstm/config.yaml'
 path_config = str(sys.argv[1])
 # print(path_config)
 
@@ -81,6 +82,19 @@ if config['tstoy']=='09':
         'lt':float,
         'st':float
     }
+elif config['tstoy']=='10':
+    path_csv_series_s = (path_tstoy + 'SeparateSisp_tr/sisp_' + series_s + '.csv')
+    dtype_dict = {
+        'ts':str,
+        'twd':float,
+        'at':float,
+        'pr':float,
+        'rh':float,
+        'ws':float,
+        'gr':float,
+        'vp':float,
+        'sw':float
+    }
 else:
     path_csv_series_s = (path_tstoy + 'SeparateSeries/tstoy' + config['tstoy'] +
         '_series_' + series_s + '.csv'
@@ -120,6 +134,8 @@ y_full = np.expand_dims(y_full, axis=0)
 for s in range(1,nb_series):
     series_s = seriesvec[s]
     if config['tstoy']=='09':
+        path_csv_series_s = (path_tstoy + 'SeparateSisp_tr/sisp_' + series_s + '.csv')
+    elif config['tstoy']=='10':
         path_csv_series_s = (path_tstoy + 'SeparateSisp_tr/sisp_' + series_s + '.csv')
     else:
         path_csv_series_s = (path_tstoy + 'SeparateSeries/tstoy' + config['tstoy'] +
